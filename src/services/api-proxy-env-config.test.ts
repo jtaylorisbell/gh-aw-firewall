@@ -711,6 +711,17 @@ describe('buildOidcEnv', () => {
     expect(env.AWF_ANTHROPIC_AUTH_HEADER).toBe('X-Custom-Anthropic-Auth');
   });
 
+  it('forwards custom auth schemes to the sidecar', () => {
+    const env = buildOidcEnv({
+      ...baseConfig,
+      workDir: '/tmp/awf-test',
+      openaiApiAuthScheme: 'Token',
+      anthropicApiAuthScheme: 'Bearer',
+    });
+    expect(env.AWF_OPENAI_AUTH_SCHEME).toBe('Token');
+    expect(env.AWF_ANTHROPIC_AUTH_SCHEME).toBe('Bearer');
+  });
+
   it('forwards Databricks OIDC config-file values to the sidecar', () => {
     const env = buildOidcEnv({
       ...baseConfig,

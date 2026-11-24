@@ -449,6 +449,14 @@ program
     'Custom auth header name for Anthropic requests (default: x-api-key)',
   )
   .option(
+    '--openai-api-auth-scheme <scheme>',
+    'Auth scheme prefixed to the OpenAI key, e.g. Bearer (sent in --openai-api-auth-header, else Authorization)',
+  )
+  .option(
+    '--anthropic-api-auth-scheme <scheme>',
+    'Auth scheme prefixed to the Anthropic key, e.g. Bearer (sent in --anthropic-api-auth-header, else Authorization)',
+  )
+  .option(
     '--gemini-api-target <host>',
     'Target hostname for Gemini API requests (default: generativelanguage.googleapis.com)',
   )

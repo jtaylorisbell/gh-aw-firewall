@@ -42,6 +42,25 @@ function validateAuthHeaderEnv(envVarName, rawValue, defaultHeader) {
   return header;
 }
 
+/** RFC 9110 `token` characters, the grammar for an auth-scheme name. */
+const AUTH_SCHEME_PATTERN = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+
+/**
+ * Read and validate an auth scheme (e.g. `Bearer`) from an env var.
+ * @param {string} envVarName - The environment variable name (for error messages)
+ * @param {string|undefined} rawValue - The raw env var value
+ * @returns {string} The validated scheme, or empty string when unset
+ * @throws {Error} If the value is not a valid auth-scheme token
+ */
+function validateAuthSchemeEnv(envVarName, rawValue) {
+  const scheme = (rawValue || '').trim();
+  if (!scheme) return '';
+  if (!AUTH_SCHEME_PATTERN.test(scheme)) {
+    throw new Error(`Invalid ${envVarName} value: expected an HTTP auth scheme such as Bearer`);
+  }
+  return scheme;
+}
+
 /**
  * Build common OIDC runtime adapter methods shared by provider adapters.
  *
@@ -166,6 +185,7 @@ function buildOidcUnavailableScaffold({ requested, configured, unavailableMessag
 module.exports = {
   isValidHeaderName,
   validateAuthHeaderEnv,
+  validateAuthSchemeEnv,
   createOidcRuntimeAdapterMethods,
   resolveOidcAuthHeaders,
   resolveAuthHeadersWithFallback,

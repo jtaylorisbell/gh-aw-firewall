@@ -13,7 +13,11 @@
 const {
   parseApiTargetAndBasePath,
 } = require('../proxy-utils');
-const { validateAuthHeaderEnv, buildOidcUnavailableScaffold } = require('../oidc-adapter-utils');
+const {
+  validateAuthHeaderEnv,
+  validateAuthSchemeEnv,
+  buildOidcUnavailableScaffold,
+} = require('../oidc-adapter-utils');
 const { buildAuthHeaderFn } = require('./auth-headers');
 const { composeBodyTransforms } = require('../proxy-utils');
 const {
@@ -39,9 +43,12 @@ function createOpenAIAdapter(env, deps = {}) {
   const authProvider = (env.AWF_AUTH_PROVIDER || 'azure').trim().toLowerCase();
   const openAiWifRequested = authType === 'github-oidc' && authProvider === 'openai';
   const copilotAzureByokEnabled = providerType === 'azure';
+  const authScheme = validateAuthSchemeEnv(OPENAI_ENV.AUTH_SCHEME, env[OPENAI_ENV.AUTH_SCHEME]);
   const customAuthHeader = (() => {
     const header = validateAuthHeaderEnv(OPENAI_ENV.AUTH_HEADER, env[OPENAI_ENV.AUTH_HEADER]);
     if (header) return header;
+    // An explicit auth scheme without a header name means `Authorization: <scheme> <key>`.
+    if (authScheme) return '';
     // Azure OpenAI BYOK uses `api-key` header instead of `Authorization: Bearer`
     // (but OIDC auth still requires `Authorization: Bearer` unless explicitly overridden)
     if (copilotAzureByokEnabled && (env.AWF_AUTH_TYPE || '').trim().toLowerCase() !== 'github-oidc') return 'api-key';
@@ -56,7 +63,10 @@ function createOpenAIAdapter(env, deps = {}) {
   // Azure OpenAI BYOK uses the `api-key` header instead of `Authorization: Bearer`
   // (but OIDC auth still requires `Authorization: Bearer` unless explicitly overridden);
   // buildAuthHeaderFn centralises that "custom header vs. Bearer" branching.
-  const buildTokenAuthHeaders = buildAuthHeaderFn({ headerName: customAuthHeader || undefined });
+  const buildTokenAuthHeaders = buildAuthHeaderFn({
+    headerName: customAuthHeader || undefined,
+    scheme: authScheme || undefined,
+  });
   return createStandardProviderAdapter(env, deps, {
     envVars: {
       keyEnvVar: OPENAI_ENV.KEY,

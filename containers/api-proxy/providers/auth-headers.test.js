@@ -6,7 +6,9 @@ const {
   providerKeyHeaders,
   withCopilotIntegration,
   buildAuthHeaderFn,
+  stripAuthScheme,
 } = require('./auth-headers');
+const { getHeaderCredentials } = require('../credential-protection');
 
 describe('bearerAuthHeaders', () => {
   it('builds an Authorization: Bearer ... header', () => {
@@ -127,5 +129,45 @@ describe('buildAuthHeaderFn', () => {
     expect(build('goog-key', { 'x-extra': 'v' })).toEqual(
       providerKeyHeaders('x-goog-api-key', 'goog-key', { 'x-extra': 'v' })
     );
+  });
+});
+
+describe('buildAuthHeaderFn with an explicit scheme', () => {
+  it('sends Authorization: <scheme> <token> when no header name is set', () => {
+    const build = buildAuthHeaderFn({ scheme: 'Bearer' });
+    expect(build('dapi-key')).toEqual({ 'Authorization': 'Bearer dapi-key' });
+  });
+
+  it('takes precedence over the default prefix', () => {
+    const build = buildAuthHeaderFn({ prefix: 'token', scheme: 'Bearer' });
+    expect(build('key')).toEqual({ 'Authorization': 'Bearer key' });
+  });
+
+  it('prefixes the scheme inside a custom header name', () => {
+    const build = buildAuthHeaderFn({ headerName: 'X-Gateway-Auth', scheme: 'Token' });
+    expect(build('key', { 'x-extra': 'v' })).toEqual({ 'X-Gateway-Auth': 'Token key', 'x-extra': 'v' });
+  });
+
+  it('does not double-prefix a secret that already embeds the scheme', () => {
+    const build = buildAuthHeaderFn({ scheme: 'Bearer' });
+    expect(build('Bearer dapi-key')).toEqual({ 'Authorization': 'Bearer dapi-key' });
+    expect(build('bearer  dapi-key')).toEqual({ 'Authorization': 'Bearer dapi-key' });
+  });
+
+  it('marks the bare credential for echo protection', () => {
+    const build = buildAuthHeaderFn({ headerName: 'X-Gateway-Auth', scheme: 'Bearer' });
+    expect(getHeaderCredentials(build('Bearer dapi-key'))).toEqual(['dapi-key']);
+  });
+});
+
+describe('stripAuthScheme', () => {
+  it('only strips a whole leading scheme word', () => {
+    expect(stripAuthScheme('Bearer', 'Bearer abc')).toBe('abc');
+    expect(stripAuthScheme('Bearer', 'Bearerabc')).toBe('Bearerabc');
+    expect(stripAuthScheme('Bearer', 'abc Bearer def')).toBe('abc Bearer def');
+  });
+
+  it('passes non-string values through', () => {
+    expect(stripAuthScheme('Bearer', undefined)).toBeUndefined();
   });
 });

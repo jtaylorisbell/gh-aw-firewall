@@ -289,11 +289,13 @@ AWF settings MAY be supplied via config files, including stdin (`--config -`).
 - `apiProxy.targets.copilot.sessionId` → *(config-only; opt-in `x-session-id` header / `session_id` body field for Copilot BYOK requests, maps to `AWF_PROVIDER_SESSION_ID`. Never auto-derived from `GITHUB_RUN_ID`.)*
 - `apiProxy.targets.openai.basePath` → `--openai-api-base-path`
 - `apiProxy.targets.openai.authHeader` → `--openai-api-auth-header`
+- `apiProxy.targets.openai.authScheme` → `--openai-api-auth-scheme` *(sends `<scheme> <key>` in `authHeader` when set, otherwise in `Authorization`; maps to `AWF_OPENAI_AUTH_SCHEME`)*
 - `apiProxy.targets.openai.baseUrlEnv` → `--openai-base-url-env` *(names a runner environment variable holding a secret OpenAI-compatible base URL; see [§9.7 Secret-Backed OpenAI Target](#97-secret-backed-openai-target))*
 - `apiProxy.targets.openai.trustedService` → *(config-only; opt-in trusted LLM service endpoint and `secretHeaders` mapping header names to runner environment variable names, never literal values; see the trusted-service contract in this spec)*
 - `apiProxy.targets.anthropic.trustedService` → *(config-only; same contract as `apiProxy.targets.openai.trustedService`)*
 - `apiProxy.targets.anthropic.basePath` → `--anthropic-api-base-path`
 - `apiProxy.targets.anthropic.authHeader` → `--anthropic-api-auth-header`
+- `apiProxy.targets.anthropic.authScheme` → `--anthropic-api-auth-scheme` *(sends static keys as `<scheme> <key>` in `authHeader` when set, otherwise in `Authorization` instead of `x-api-key`; maps to `AWF_ANTHROPIC_AUTH_SCHEME`)*
 - `apiProxy.targets.gemini.basePath` → `--gemini-api-base-path`
 - `apiProxy.targets.antigravity.basePath` → `--gemini-api-base-path`
 - When both `apiProxy.targets.antigravity` and `apiProxy.targets.gemini` are set, `antigravity` takes precedence per field.

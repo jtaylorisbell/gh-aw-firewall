@@ -654,6 +654,21 @@ describe('mapAwfFileConfigToCliOptions', () => {
     expect(result.authDatabricksScope).toBe('all-apis');
   });
 
+  it('maps target authScheme fields', () => {
+    const result = mapAwfFileConfigToCliOptions({
+      apiProxy: {
+        targets: {
+          openai: { authScheme: 'Token' },
+          anthropic: { authHeader: 'Authorization', authScheme: 'Bearer' },
+        },
+      },
+    });
+
+    expect(result.openaiApiAuthScheme).toBe('Token');
+    expect(result.anthropicApiAuthHeader).toBe('Authorization');
+    expect(result.anthropicApiAuthScheme).toBe('Bearer');
+  });
+
   it('maps rateLimiting fields including GitHub API point budgets', () => {
     const result = mapAwfFileConfigToCliOptions({
       rateLimiting: {

@@ -667,6 +667,25 @@ describe('awf-config.schema.json', () => {
     ).toBe(true);
   });
 
+  it('accepts an authScheme on the openai and anthropic targets', () => {
+    expect(
+      validate({
+        apiProxy: {
+          targets: {
+            openai: { host: 'gateway.example.com', authHeader: 'X-Gateway-Auth', authScheme: 'Bearer' },
+            anthropic: { host: 'dbc-1234.cloud.databricks.com', authScheme: 'Bearer' },
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it.each(['Bearer token', 'Bearer:', ''])('rejects authScheme %p', (authScheme) => {
+    expect(
+      validate({ apiProxy: { targets: { anthropic: { authScheme } } } })
+    ).toBe(false);
+  });
+
   it('rejects apiProxy.auth with unknown type', () => {
     expect(
       validate({

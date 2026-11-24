@@ -407,7 +407,7 @@ function buildModelRoutingEnv(config: WrapperConfig): Record<string, string> {
 
 /**
  * Builds OIDC authentication environment variables: Azure/AWS/GCP/Anthropic/Databricks OIDC provider vars,
- * GitHub Actions OIDC runtime tokens, and custom auth headers for internal AI gateways.
+ * GitHub Actions OIDC runtime tokens, and custom auth headers/schemes for internal AI gateways.
  */
 function buildOidcEnv(config: WrapperConfig): Record<string, string> {
   const normalizedAuthType = (config.authType?.toLowerCase().trim())
@@ -441,6 +441,8 @@ function buildOidcEnv(config: WrapperConfig): Record<string, string> {
     // Custom auth header names for internal AI gateways
     ...(config.openaiApiAuthHeader && { [OPENAI_ENV.AUTH_HEADER]: config.openaiApiAuthHeader }),
     ...(config.anthropicApiAuthHeader && { [ANTHROPIC_ENV.AUTH_HEADER]: config.anthropicApiAuthHeader }),
+    ...(config.openaiApiAuthScheme && { [OPENAI_ENV.AUTH_SCHEME]: config.openaiApiAuthScheme }),
+    ...(config.anthropicApiAuthScheme && { [ANTHROPIC_ENV.AUTH_SCHEME]: config.anthropicApiAuthScheme }),
     ...(config.anthropicTokenUrl && { AWF_AUTH_ANTHROPIC_TOKEN_URL: config.anthropicTokenUrl }),
     // OIDC auth config-file values override host env vars (config-file > env fallback precedence)
     ...Object.fromEntries(

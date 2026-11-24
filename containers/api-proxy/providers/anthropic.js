@@ -19,12 +19,13 @@ const {
 } = require('../proxy-utils');
 const {
   validateAuthHeaderEnv,
+  validateAuthSchemeEnv,
   buildOidcUnavailableScaffold,
 } = require('../oidc-adapter-utils');
 const { createStandardProviderAdapter } = require('../adapter-factory');
 const { AnthropicOidcTokenProvider } = require('../anthropic-oidc-token-provider');
 const { ANTHROPIC_ENV } = require('../provider-env-constants');
-const { bearerAuthHeaders, providerKeyHeaders } = require('./auth-headers');
+const { bearerAuthHeaders, buildAuthHeaderFn } = require('./auth-headers');
 const { markCredentialHeaders, getHeaderCredentials } = require('../credential-protection');
 const {
   parseClaudeHostedWebPolicy,
@@ -70,7 +71,15 @@ function mergeAnthropicBetas(...values) {
  * @returns {import('./index').ProviderAdapter}
  */
 function createAnthropicAdapter(env, deps = {}) {
-  const authHeaderName = validateAuthHeaderEnv(ANTHROPIC_ENV.AUTH_HEADER, env[ANTHROPIC_ENV.AUTH_HEADER], 'x-api-key');
+  const explicitAuthHeader = validateAuthHeaderEnv(ANTHROPIC_ENV.AUTH_HEADER, env[ANTHROPIC_ENV.AUTH_HEADER]);
+  const authScheme = validateAuthSchemeEnv(ANTHROPIC_ENV.AUTH_SCHEME, env[ANTHROPIC_ENV.AUTH_SCHEME]);
+  // Static keys go in `x-api-key` by default. An explicit auth scheme sends
+  // `<scheme> <key>`, in AWF_ANTHROPIC_AUTH_HEADER when set or `Authorization`
+  // otherwise, so gateways expecting `Authorization: Bearer <key>` no longer
+  // need the scheme baked into the secret.
+  const buildStaticAuthHeaders = buildAuthHeaderFn(authScheme
+    ? { headerName: explicitAuthHeader || undefined, scheme: authScheme }
+    : { headerName: explicitAuthHeader || 'x-api-key' });
 
   // oidcRequested tracks whether the caller asked for Anthropic OIDC, regardless
   // of whether the token env vars (ACTIONS_ID_TOKEN_REQUEST_*) are also present.
@@ -152,7 +161,7 @@ function createAnthropicAdapter(env, deps = {}) {
       buildOidcHeaders: (token) => bearerAuthHeaders(token, {
         'anthropic-beta': OAUTH_API_BETA,
       }),
-      buildStaticHeaders: () => providerKeyHeaders(authHeaderName, apiKey),
+      buildStaticHeaders: () => buildStaticAuthHeaders(apiKey),
     }),
     createAdapterMethodsOptions: ({ oidcConfigured, oidcProvider, resolveHeaders }) => ({
       validationPath: '/v1/messages',

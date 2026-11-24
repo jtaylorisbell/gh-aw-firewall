@@ -24,7 +24,37 @@ const { markCredentialHeaders, getHeaderCredentials } = require('../credential-p
  * @returns {Record<string, string>}
  */
 function tokenAuthHeaders(prefix, token, extraHeaders) {
-  return markCredentialHeaders({ ...extraHeaders, 'Authorization': prefix + ' ' + token }, [token]);
+  return schemeAuthHeaders('Authorization', prefix, token, extraHeaders);
+}
+
+/**
+ * Build `<headerName>: <scheme> <token>`, optionally merged with extra headers.
+ *
+ * @param {string} headerName
+ * @param {string} scheme - The auth scheme prefix (e.g. `Bearer`)
+ * @param {string} token
+ * @param {Record<string, string>} [extraHeaders]
+ * @returns {Record<string, string>}
+ */
+function schemeAuthHeaders(headerName, scheme, token, extraHeaders) {
+  return markCredentialHeaders({ ...extraHeaders, [headerName]: scheme + ' ' + token }, [token]);
+}
+
+/**
+ * Remove a leading `<scheme> ` from a credential, case-insensitively.
+ *
+ * Lets operators adopt an explicit auth scheme without first rewriting secrets
+ * that already embed it (e.g. a secret stored as `Bearer <token>`), instead of
+ * sending `Bearer Bearer <token>`.
+ *
+ * @param {string} scheme
+ * @param {string} token
+ * @returns {string}
+ */
+function stripAuthScheme(scheme, token) {
+  if (typeof token !== 'string') return token;
+  const prefix = scheme.toLowerCase() + ' ';
+  return token.toLowerCase().startsWith(prefix) ? token.slice(prefix.length).trimStart() : token;
 }
 
 /**
@@ -63,10 +93,23 @@ function providerKeyHeaders(headerName, token, extraHeaders) {
  * as Copilot can select the `token` or `Bearer` scheme when creating the
  * reusable builder.
  *
- * @param {{ headerName?: string, prefix?: string }} [options]
+ * `scheme` is an operator-configured auth scheme (`AWF_{PROVIDER}_AUTH_SCHEME`).
+ * When set, the value becomes `<scheme> <token>`: in `headerName` if given,
+ * otherwise in `Authorization` (it takes precedence over `prefix`). A credential
+ * that already starts with the scheme is not prefixed twice.
+ *
+ * @param {{ headerName?: string, prefix?: string, scheme?: string }} [options]
  * @returns {(token: string, extraHeaders?: Record<string, string>) => Record<string, string>}
  */
-function buildAuthHeaderFn({ headerName, prefix = 'Bearer' } = {}) {
+function buildAuthHeaderFn({ headerName, prefix = 'Bearer', scheme } = {}) {
+  if (scheme) {
+    return (token, extraHeaders) => schemeAuthHeaders(
+      headerName || 'Authorization',
+      scheme,
+      stripAuthScheme(scheme, token),
+      extraHeaders,
+    );
+  }
   return (token, extraHeaders) => (headerName
     ? providerKeyHeaders(headerName, token, extraHeaders)
     : tokenAuthHeaders(prefix, token, extraHeaders));
@@ -83,4 +126,12 @@ function withCopilotIntegration(headers, integrationId) {
   return markCredentialHeaders({ ...headers, 'Copilot-Integration-Id': integrationId }, getHeaderCredentials(headers));
 }
 
-module.exports = { tokenAuthHeaders, bearerAuthHeaders, providerKeyHeaders, withCopilotIntegration, buildAuthHeaderFn };
+module.exports = {
+  tokenAuthHeaders,
+  schemeAuthHeaders,
+  stripAuthScheme,
+  bearerAuthHeaders,
+  providerKeyHeaders,
+  withCopilotIntegration,
+  buildAuthHeaderFn,
+};

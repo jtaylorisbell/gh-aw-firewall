@@ -2154,6 +2154,11 @@
         "authHeader": {
           "type": "string"
         },
+        "authScheme": {
+          "type": "string",
+          "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$",
+          "description": "HTTP auth scheme to prefix to the credential, e.g. 'Bearer'. The header value becomes '<authScheme> <key>' in authHeader when set, otherwise in 'Authorization' (replacing the default 'x-api-key' header). A credential that already starts with the scheme is not prefixed twice."
+        },
         "trustedService": {
           "$ref": "#/$defs/trustedService"
         }
@@ -2233,6 +2238,11 @@
         "authHeader": {
           "type": "string",
           "description": "Override the auth header name used for API requests. Replaces 'Authorization: ******' with '<authHeader>: <key>'."
+        },
+        "authScheme": {
+          "type": "string",
+          "pattern": "^[!#$%&'*+.^_`|~0-9A-Za-z-]+$",
+          "description": "HTTP auth scheme to prefix to the credential, e.g. 'Bearer'. The header value becomes '<authScheme> <key>' in authHeader when set, otherwise in 'Authorization' (replacing the default 'Authorization: Bearer' scheme or Azure BYOK's 'api-key' header). A credential that already starts with the scheme is not prefixed twice."
         },
         "baseUrlEnv": {
           "type": "string",

@@ -38,7 +38,8 @@ Auth evaluation in the api-proxy is determined by the combination of these indep
 | 5 | BYOK Mode | `COPILOT_PROVIDER_TYPE` | unset (standard), `azure` |
 | 6 | Target Override | `{PROVIDER}_API_TARGET` | Any hostname |
 | 7 | Custom Auth Header | `AWF_{PROVIDER}_AUTH_HEADER` | Any valid HTTP header name |
-| 8 | Extra Injection | `AWF_BYOK_EXTRA_HEADERS`, `AWF_BYOK_EXTRA_BODY_FIELDS` | JSON objects |
+| 8 | Custom Auth Scheme | `AWF_{PROVIDER}_AUTH_SCHEME` | Any HTTP auth-scheme token (e.g. `Bearer`); OpenAI and Anthropic only |
+| 9 | Extra Injection | `AWF_BYOK_EXTRA_HEADERS`, `AWF_BYOK_EXTRA_BODY_FIELDS` | JSON objects |
 
 :::note
 The OIDC Provider dimension (`AWF_AUTH_PROVIDER`) applies to OpenAI, Anthropic, Copilot, Gemini, and Vertex AI when the listed provider supports that cloud's token format. The Gemini and Vertex AI adapters support `AWF_AUTH_PROVIDER=gcp` through Google Workload Identity Federation; other OIDC providers do not apply to those Google adapters.
@@ -122,9 +123,11 @@ When `AWF_AUTH_TYPE=github-oidc`, `AWF_AUTH_PROVIDER=databricks`, and `OPENAI_AP
 
 See [Databricks (OAuth token federation)](#databricks-oauth-token-federation) for the exchange parameters.
 
-### Custom Auth Header
+### Custom Auth Header and Scheme
 
 `AWF_OPENAI_AUTH_HEADER` overrides the header name used for static keys and cloud OIDC tokens. OpenAI native WIF always uses `Authorization: Bearer`, as required by the OpenAI API.
+
+`AWF_OPENAI_AUTH_SCHEME` (config: `apiProxy.targets.openai.authScheme`, flag: `--openai-api-auth-scheme`) prefixes the credential with an auth scheme: the value becomes `<scheme> <key>` in `AWF_OPENAI_AUTH_HEADER` when that is set, otherwise in `Authorization`. An explicit scheme also replaces the implicit Azure BYOK `api-key` header. A credential that already starts with the scheme is not prefixed twice.
 
 ---
 
@@ -183,9 +186,11 @@ When `AWF_AUTH_TYPE=github-oidc`, `AWF_AUTH_PROVIDER=databricks`, and `ANTHROPIC
 
 See [Databricks (OAuth token federation)](#databricks-oauth-token-federation) for the exchange parameters.
 
-### Custom Auth Header
+### Custom Auth Header and Scheme
 
 `AWF_ANTHROPIC_AUTH_HEADER` overrides the header name (default: `x-api-key`). Useful for enterprise gateways that expect a different header.
+
+`AWF_ANTHROPIC_AUTH_SCHEME` (config: `apiProxy.targets.anthropic.authScheme`, flag: `--anthropic-api-auth-scheme`) sends static keys as `<scheme> <key>`: in `AWF_ANTHROPIC_AUTH_HEADER` when that is set, otherwise in `Authorization` instead of `x-api-key`. Gateways that expect `Authorization: Bearer <key>` (such as Databricks Unity Gateway, whose Anthropic endpoint rejects tokens in `x-api-key`) no longer need `Bearer ` stored inside the secret. A credential that already starts with the scheme is not prefixed twice, so existing secrets keep working while you migrate. OIDC tokens always use `Authorization: Bearer`.
 
 ---
 
@@ -883,9 +888,11 @@ Adds `x-session-id` header automatically in BYOK mode unless already present.
 | OpenAI | GCP OIDC | — | ✅ | `openai.js`, `gcp-oidc-token-provider.js` |
 | OpenAI | Native WIF | — | ✅ | `openai.js`, `openai-oidc-token-provider.js` |
 | OpenAI | Databricks OIDC | — | ✅ | `openai.js`, `databricks-oidc-token-provider.js`, `server.auth-matrix.test.js` |
+| OpenAI | Custom auth scheme | — | ✅ | `openai.js`, `auth-headers.js`, `server.custom-auth-header.test.js` |
 | Anthropic | Static key | — | ✅ | `anthropic.js` |
 | Anthropic | WIF | — | ✅ | `anthropic.js`, `anthropic-oidc-token-provider.js` |
 | Anthropic | Custom header | — | ✅ | `anthropic.js` |
+| Anthropic | Custom auth scheme | — | ✅ | `anthropic.js`, `auth-headers.js`, `server.custom-auth-header.test.js` |
 | Anthropic | Databricks OIDC | — | ✅ | `anthropic.js`, `databricks-oidc-token-provider.js`, `server.auth-matrix.test.js` |
 | Copilot | GitHub token | github.com | ✅ | `copilot.js`, `copilot-auth.js` |
 | Copilot | GitHub token | GHEC | ✅ | `copilot.js`, `copilot-auth.js` |

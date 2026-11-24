@@ -741,6 +741,8 @@ These entries document and constrain agent-originated traffic. They do not const
 | `--vertex-api-base-path <path>` | empty | Base path prefix for Vertex API requests. Can also be set via `VERTEX_API_BASE_PATH` env var. |
 | `--openai-api-auth-header <name>` | `Authorization` (with `Bearer` prefix) | Custom auth header name for OpenAI requests — sends the raw key/token value with no prefix. Can also be set via `AWF_OPENAI_AUTH_HEADER` env var. |
 | `--anthropic-api-auth-header <name>` | `x-api-key` | Custom auth header name for Anthropic requests — sends the raw key/token value with no prefix. Can also be set via `AWF_ANTHROPIC_AUTH_HEADER` env var. |
+| `--openai-api-auth-scheme <scheme>` | none | Auth scheme prefixed to the OpenAI credential (e.g. `Bearer`), sent as `<scheme> <key>` in `--openai-api-auth-header` when set, otherwise in `Authorization`. Can also be set via `AWF_OPENAI_AUTH_SCHEME` env var or `apiProxy.targets.openai.authScheme`. |
+| `--anthropic-api-auth-scheme <scheme>` | none | Auth scheme prefixed to static Anthropic keys (e.g. `Bearer`), sent as `<scheme> <key>` in `--anthropic-api-auth-header` when set, otherwise in `Authorization` instead of `x-api-key`. Replaces storing `Bearer ` inside the secret. Can also be set via `AWF_ANTHROPIC_AUTH_SCHEME` env var or `apiProxy.targets.anthropic.authScheme`. |
 
 > **Important**: When using a custom `--openai-api-target` or `--anthropic-api-target`, you must add the target domain to `--allow-domains` so the firewall permits outbound traffic. AWF will emit a warning if a custom target is set but not in the allowlist.
 
@@ -2146,6 +2148,23 @@ jobs:
 For OpenAI-compatible clients, set `apiProxy.targets.openai` to the same host with `basePath: /ai-gateway/mlflow/v1`, in place of or alongside the Anthropic target.
 
 Databricks' Claude Code guide also sets `ANTHROPIC_CUSTOM_HEADERS=x-databricks-use-coding-agent-mode: true`. AWF forwards non-credential client headers, so pass that variable to the agent with `--env` if you want the same behavior.
+
+#### Static tokens
+
+If you stay on a static Databricks token instead of OIDC, set `authScheme: Bearer` on the target rather than storing `Bearer <token>` in the secret:
+
+```yaml
+apiProxy:
+  targets:
+    anthropic:
+      host: dbc-1234.cloud.databricks.com
+      basePath: /ai-gateway/anthropic
+      authScheme: Bearer   # sends Authorization: Bearer <ANTHROPIC_API_KEY>
+```
+
+Without it, the key goes in `x-api-key`, which Unity Gateway's Anthropic endpoint rejects with 401.
+
+Databricks recommends OAuth (the OIDC flow above) over long-lived personal access tokens.
 
 ## AI-credit hard cap
 

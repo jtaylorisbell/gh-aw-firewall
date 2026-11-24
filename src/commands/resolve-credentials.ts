@@ -28,6 +28,8 @@ type ApiCredentials = Pick<WrapperConfig,
   | 'anthropicApiBasePath'
   | 'openaiApiAuthHeader'
   | 'anthropicApiAuthHeader'
+  | 'openaiApiAuthScheme'
+  | 'anthropicApiAuthScheme'
   | 'anthropicTokenUrl'
   | OidcConfigKey
   | 'geminiApiTarget'
@@ -87,6 +89,12 @@ export function resolveApiCredentials(
       options,
       'anthropicApiAuthHeader',
       ANTHROPIC_ENV.AUTH_HEADER
+    ),
+    openaiApiAuthScheme: resolveOptionOrEnv(options, 'openaiApiAuthScheme', OPENAI_ENV.AUTH_SCHEME),
+    anthropicApiAuthScheme: resolveOptionOrEnv(
+      options,
+      'anthropicApiAuthScheme',
+      ANTHROPIC_ENV.AUTH_SCHEME
     ),
     anthropicTokenUrl: (options.anthropicTokenUrl as string | undefined) ?? process.env.AWF_AUTH_ANTHROPIC_TOKEN_URL,
     ...oidcCredentials,

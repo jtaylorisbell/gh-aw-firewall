@@ -257,3 +257,100 @@ describe('createOpenAIAdapter — custom auth header', () => {
     provider.shutdown();
   });
 });
+
+// ─── Auth scheme (AWF_ANTHROPIC_AUTH_SCHEME, AWF_OPENAI_AUTH_SCHEME) ───
+
+describe('createAnthropicAdapter — custom auth scheme', () => {
+  const fakeReq = { url: '/v1/messages', method: 'POST', headers: {} };
+
+  it('sends Authorization: <scheme> <key> instead of x-api-key', () => {
+    const adapter = createAnthropicAdapter({
+      ANTHROPIC_API_KEY: 'dapi-static-key',
+      ANTHROPIC_API_TARGET: 'dbc-1234.cloud.databricks.com',
+      AWF_ANTHROPIC_AUTH_SCHEME: 'Bearer',
+    });
+    expect(adapter.getAuthHeaders(fakeReq)).toEqual({
+      Authorization: 'Bearer dapi-static-key',
+      'anthropic-version': '2023-06-01',
+    });
+  });
+
+  it('keeps working with a secret that still embeds the scheme', () => {
+    const adapter = createAnthropicAdapter({
+      ANTHROPIC_API_KEY: 'Bearer dapi-static-key',
+      AWF_ANTHROPIC_AUTH_HEADER: 'Authorization',
+      AWF_ANTHROPIC_AUTH_SCHEME: 'Bearer',
+    });
+    expect(adapter.getAuthHeaders(fakeReq).Authorization).toBe('Bearer dapi-static-key');
+  });
+
+  it('combines with a custom header name', () => {
+    const adapter = createAnthropicAdapter({
+      ANTHROPIC_API_KEY: 'gateway-key',
+      AWF_ANTHROPIC_AUTH_HEADER: 'X-Gateway-Auth',
+      AWF_ANTHROPIC_AUTH_SCHEME: 'Token',
+    });
+    const headers = adapter.getAuthHeaders(fakeReq);
+    expect(headers['X-Gateway-Auth']).toBe('Token gateway-key');
+    expect(headers.Authorization).toBeUndefined();
+    expect(headers['x-api-key']).toBeUndefined();
+  });
+
+  it('is used by the validation probe and models fetch', () => {
+    const adapter = createAnthropicAdapter({
+      ANTHROPIC_API_KEY: 'dapi-static-key',
+      AWF_ANTHROPIC_AUTH_SCHEME: 'Bearer',
+    });
+    expect(adapter.getValidationProbe().opts.headers.Authorization).toBe('Bearer dapi-static-key');
+    expect(adapter.getModelsFetchConfig().opts.headers.Authorization).toBe('Bearer dapi-static-key');
+  });
+
+  it('throws on an invalid scheme', () => {
+    expect(() => createAnthropicAdapter({
+      ANTHROPIC_API_KEY: 'k',
+      AWF_ANTHROPIC_AUTH_SCHEME: 'Bearer token',
+    })).toThrow(/Invalid AWF_ANTHROPIC_AUTH_SCHEME/);
+  });
+});
+
+describe('createOpenAIAdapter — custom auth scheme', () => {
+  const fakeReq = { url: '/v1/chat/completions', method: 'POST', headers: {} };
+
+  it('prefixes the scheme inside a custom header name', () => {
+    const adapter = createOpenAIAdapter({
+      OPENAI_API_KEY: 'gateway-key',
+      OPENAI_API_TARGET: 'gateway.example.com',
+      AWF_OPENAI_AUTH_HEADER: 'X-Gateway-Auth',
+      AWF_OPENAI_AUTH_SCHEME: 'Bearer',
+    });
+    expect(adapter.getAuthHeaders(fakeReq)).toEqual({ 'X-Gateway-Auth': 'Bearer gateway-key' });
+  });
+
+  it('uses Authorization rather than the implicit Azure BYOK api-key header', () => {
+    const adapter = createOpenAIAdapter({
+      COPILOT_PROVIDER_TYPE: 'azure',
+      COPILOT_PROVIDER_BASE_URL: 'https://gateway.example.com/openai',
+      COPILOT_PROVIDER_API_KEY: 'byok-key',
+      AWF_OPENAI_AUTH_SCHEME: 'Bearer',
+    });
+    const headers = adapter.getAuthHeaders(fakeReq);
+    expect(headers.Authorization).toBe('Bearer byok-key');
+    expect(headers['api-key']).toBeUndefined();
+  });
+
+  it('does not double-prefix a secret that already embeds the scheme', () => {
+    const adapter = createOpenAIAdapter({
+      OPENAI_API_KEY: 'Bearer dapi-static-key',
+      OPENAI_API_TARGET: 'dbc-1234.cloud.databricks.com',
+      AWF_OPENAI_AUTH_SCHEME: 'Bearer',
+    });
+    expect(adapter.getAuthHeaders(fakeReq).Authorization).toBe('Bearer dapi-static-key');
+  });
+
+  it('throws on an invalid scheme', () => {
+    expect(() => createOpenAIAdapter({
+      OPENAI_API_KEY: 'k',
+      AWF_OPENAI_AUTH_SCHEME: 'Bearer:',
+    })).toThrow(/Invalid AWF_OPENAI_AUTH_SCHEME/);
+  });
+});

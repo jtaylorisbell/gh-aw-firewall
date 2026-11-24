@@ -176,6 +176,41 @@ export interface ApiProxyCredentialOptions {
   anthropicApiAuthHeader?: string;
 
   /**
+   * Auth scheme prefixed to the OpenAI credential (used by API proxy sidecar).
+   *
+   * When set, the header value becomes `<scheme> <key>`: in
+   * `openaiApiAuthHeader` when that is set, otherwise in `Authorization`
+   * (which also overrides Azure BYOK's implicit `api-key` header). A credential
+   * that already starts with the scheme is not prefixed twice.
+   *
+   * Can be set via:
+   * - CLI flag: `--openai-api-auth-scheme <scheme>`
+   * - Environment variable: `AWF_OPENAI_AUTH_SCHEME`
+   *
+   * @default undefined
+   * @example 'Bearer'
+   */
+  openaiApiAuthScheme?: string;
+
+  /**
+   * Auth scheme prefixed to the Anthropic credential (used by API proxy sidecar).
+   *
+   * When set, static keys are sent as `<scheme> <key>`: in
+   * `anthropicApiAuthHeader` when that is set, otherwise in `Authorization`
+   * instead of `x-api-key`. This replaces storing `Bearer <key>` in the secret
+   * for gateways that expect bearer auth. A credential that already starts
+   * with the scheme is not prefixed twice.
+   *
+   * Can be set via:
+   * - CLI flag: `--anthropic-api-auth-scheme <scheme>`
+   * - Environment variable: `AWF_ANTHROPIC_AUTH_SCHEME`
+   *
+   * @default undefined
+   * @example 'Bearer'
+   */
+  anthropicApiAuthScheme?: string;
+
+  /**
    * Anthropic OIDC token exchange endpoint override.
    *
    * When set, AWF passes this value to the API proxy as

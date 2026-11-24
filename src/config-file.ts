@@ -102,8 +102,8 @@ export interface AwfFileConfig {
     };
     routing?: ModelRoutingConfig;
     targets?: {
-      openai?: { host?: string; basePath?: string; authHeader?: string; baseUrlEnv?: string; trustedService?: import('./trusted-service').TrustedService };
-      anthropic?: { host?: string; basePath?: string; authHeader?: string; trustedService?: import('./trusted-service').TrustedService };
+      openai?: { host?: string; basePath?: string; authHeader?: string; authScheme?: string; baseUrlEnv?: string; trustedService?: import('./trusted-service').TrustedService };
+      anthropic?: { host?: string; basePath?: string; authHeader?: string; authScheme?: string; trustedService?: import('./trusted-service').TrustedService };
       copilot?: {
         host?: string;
         basePath?: string;
