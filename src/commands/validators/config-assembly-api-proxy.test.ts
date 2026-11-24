@@ -174,6 +174,30 @@ describe('config-assembly', () => {
         expect.stringContaining('API proxy enabled: OpenAI=true, Anthropic=true'),
       );
     });
+
+    it('should report Databricks OIDC routing without static keys', () => {
+      mockBuildConfigOnce({
+        enableApiProxy: true,
+        authType: 'github-oidc',
+        authProvider: 'databricks',
+        authDatabricksHost: 'https://dbc-1234.cloud.databricks.com',
+        authOidcAudience: 'databricks-account-id',
+        anthropicApiTarget: 'dbc-1234.cloud.databricks.com',
+      });
+
+      (buildRateLimitConfig as jest.Mock).mockReturnValueOnce({
+        config: { enabled: false },
+      });
+
+      callAssembleWith();
+
+      expect(logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('API proxy enabled: OpenAI=false, Anthropic=true (databricks-oidc)'),
+      );
+      expect(logger.warn).not.toHaveBeenCalledWith(
+        expect.stringContaining('no API keys found'),
+      );
+    });
   });
 
   describe('filesystem write policy compatibility', () => {

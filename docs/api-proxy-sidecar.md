@@ -2109,7 +2109,7 @@ The token binds to the OpenAI, Anthropic, and Copilot adapters whose upstream is
 | `AWF_AUTH_DATABRICKS_CLIENT_ID` | Conditional | — | Service principal application ID. Required for service principal federation policies; omit for account-wide policies. |
 | `AWF_AUTH_DATABRICKS_SCOPE` | No | `all-apis` | OAuth scope requested in the exchange. Unity Gateway also defines a narrower `ai-gateway` scope; confirm your federation policy issues it before narrowing. |
 
-Databricks access tokens expire together with the GitHub JWT they were exchanged from and come without a refresh token, so the sidecar refreshes at 75% of the reported lifetime by minting a fresh GitHub JWT. Exchange failures are logged as `databricks_oidc_init_retry` / `databricks_oidc_refresh_failed` with the OAuth `error` and `error_description`. Raw response bodies are not logged.
+Databricks access tokens expire together with the GitHub JWT they were exchanged from and come without a refresh token, so the sidecar refreshes at 75% of the reported lifetime by minting a fresh GitHub JWT. Exchange failures are logged as `databricks_oidc_init_retry` / `databricks_oidc_refresh_failed` with the OAuth `error` and `error_description`. Raw response bodies are not logged. If the adapter's target is explicit but the configuration is incomplete, requests fail closed with `Databricks OIDC is not configured for this adapter: ...`.
 
 **Official references:** [Authenticate with an identity provider token](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-federation-exchange) · [Enable workload identity federation for GitHub Actions](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github)
 

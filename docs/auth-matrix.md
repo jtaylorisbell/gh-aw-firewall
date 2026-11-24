@@ -182,6 +182,7 @@ When `AWF_AUTH_TYPE=github-oidc`, `AWF_AUTH_PROVIDER=databricks`, and `ANTHROPIC
 | Setting | Value |
 |---------|-------|
 | Header sent upstream | `Authorization: Bearer <databricks_oauth_token>` (NOT `x-api-key`) |
+| `anthropic-beta` | Not added: the `oauth-2025-04-20` beta applies only to Anthropic-issued tokens. Client-supplied values pass through unchanged. |
 | Agent routing | `ANTHROPIC_BASE_URL` and placeholders are set from this configuration alone; no static `ANTHROPIC_API_KEY` is needed |
 
 See [Databricks (OAuth token federation)](#databricks-oauth-token-federation) for the exchange parameters.

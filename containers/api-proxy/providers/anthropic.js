@@ -26,6 +26,10 @@ const { createStandardProviderAdapter } = require('../adapter-factory');
 const { AnthropicOidcTokenProvider } = require('../anthropic-oidc-token-provider');
 const { ANTHROPIC_ENV } = require('../provider-env-constants');
 const { bearerAuthHeaders, buildAuthHeaderFn } = require('./auth-headers');
+const {
+  isDatabricksOidcRequested,
+  DATABRICKS_OIDC_UNCONFIGURED_MESSAGE,
+} = require('./cloud-oidc-init');
 const { markCredentialHeaders, getHeaderCredentials } = require('../credential-protection');
 const {
   parseClaudeHostedWebPolicy,
@@ -87,6 +91,9 @@ function createAnthropicAdapter(env, deps = {}) {
   // OIDC was asked for but could not be fully initialised.
   const oidcRequested = (env.AWF_AUTH_TYPE || '').trim().toLowerCase() === 'github-oidc'
     && (env.AWF_AUTH_PROVIDER || '').trim().toLowerCase() === 'anthropic';
+  // Cloud OIDC tokens are only bound to an explicitly configured upstream.
+  const allowCloudOidc = !!normalizeApiTarget(env[ANTHROPIC_ENV.TARGET]);
+  const databricksOidcRequested = isDatabricksOidcRequested(env) && allowCloudOidc;
 
   // ── Anthropic-specific optimisations ──────────────────────────────────────
   const autoCache = (env.AWF_ANTHROPIC_AUTO_CACHE === '1' || env.AWF_ANTHROPIC_AUTO_CACHE === 'true');
@@ -137,8 +144,7 @@ function createAnthropicAdapter(env, deps = {}) {
       ),
     }),
     createOidcAuthOptions: () => ({
-      // Cloud OIDC tokens are only bound to an explicitly configured upstream.
-      allowCloudOidc: !!normalizeApiTarget(env[ANTHROPIC_ENV.TARGET]),
+      allowCloudOidc,
       oidcProviderFactory: oidcRequested ? (env) => {
         const requestUrl = env.ACTIONS_ID_TOKEN_REQUEST_URL;
         const requestToken = env.ACTIONS_ID_TOKEN_REQUEST_TOKEN;
@@ -158,12 +164,14 @@ function createAnthropicAdapter(env, deps = {}) {
       } : null,
     }),
     createHeaderBuilders: ({ apiKey }) => ({
-      buildOidcHeaders: (token) => bearerAuthHeaders(token, {
-        'anthropic-beta': OAUTH_API_BETA,
-      }),
+      // The OAuth beta is for Anthropic-issued OAuth tokens; a Databricks token
+      // is a plain bearer credential for the Databricks-hosted endpoint.
+      buildOidcHeaders: databricksOidcRequested
+        ? (token) => bearerAuthHeaders(token)
+        : (token) => bearerAuthHeaders(token, { 'anthropic-beta': OAUTH_API_BETA }),
       buildStaticHeaders: () => buildStaticAuthHeaders(apiKey),
     }),
-    createAdapterMethodsOptions: ({ oidcConfigured, oidcProvider, resolveHeaders }) => ({
+    createAdapterMethodsOptions: ({ authProvider, oidcConfigured, oidcProvider, resolveHeaders }) => ({
       validationPath: '/v1/messages',
       validationMethod: 'POST',
       validationBody: '{}',
@@ -185,15 +193,19 @@ function createAnthropicAdapter(env, deps = {}) {
         'anthropic-version': '2023-06-01',
       }),
       reflectionExtra: () => ({
-        auth_type: oidcRequested ? 'github-oidc/anthropic' : 'static-key',
+        auth_type: oidcRequested
+          ? 'github-oidc/anthropic'
+          : (databricksOidcRequested && oidcConfigured ? `github-oidc/${authProvider}` : 'static-key'),
       }),
     }),
     buildAdapterOptions: ({ oidcConfigured }) => {
       const oidcScaffold = buildOidcUnavailableScaffold({
-        requested: oidcRequested,
+        requested: oidcRequested || databricksOidcRequested,
         configured: oidcConfigured,
         unavailableMessage: 'Anthropic OIDC token unavailable; retry shortly',
-        unconfiguredMessage: 'Anthropic OIDC requires ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN (permissions: id-token: write).',
+        unconfiguredMessage: databricksOidcRequested
+          ? DATABRICKS_OIDC_UNCONFIGURED_MESSAGE
+          : 'Anthropic OIDC requires ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN (permissions: id-token: write).',
       });
       return {
         missingCredentialResponse: {

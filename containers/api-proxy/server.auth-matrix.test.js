@@ -936,27 +936,51 @@ describe('Auth Matrix — Databricks OIDC', () => {
       ANTHROPIC_API_BASE_PATH: '/serving-endpoints/anthropic',
     };
 
-    it('sends Authorization: Bearer with the Databricks token instead of x-api-key', () => {
+    it('sends Authorization: Bearer with the Databricks token and no Anthropic OAuth beta', () => {
       const adapter = createAnthropicAdapter(env);
       const provider = injectOidcToken(adapter, 'dbx-oauth-token');
 
       const headers = adapter.getAuthHeaders(fakeReq('/v1/messages'));
-      expect(headers.Authorization).toBe('Bearer dbx-oauth-token');
+      expect(headers).toEqual({
+        Authorization: 'Bearer dbx-oauth-token',
+        'anthropic-version': '2023-06-01',
+      });
       expect(headers['x-api-key']).toBeUndefined();
+      expect(adapter.getReflectionInfo().auth_type).toBe('github-oidc/databricks');
       provider.shutdown();
     });
 
-    it('fails closed with no auth headers until the first token is acquired', () => {
+    it('preserves client-supplied anthropic-beta values unchanged', () => {
+      const adapter = createAnthropicAdapter(env);
+      const provider = injectOidcToken(adapter, 'dbx-oauth-token');
+
+      const req = { ...fakeReq('/v1/messages'), headers: { 'anthropic-beta': 'client-beta' } };
+      expect(adapter.getAuthHeaders(req)['anthropic-beta']).toBeUndefined();
+      provider.shutdown();
+    });
+
+    it('fails closed with a retryable 503 until the first token is acquired', () => {
       const adapter = createAnthropicAdapter(env);
 
       expect(adapter.isEnabled()).toBe(false);
       expect(adapter.getAuthHeaders(fakeReq('/v1/messages'))).toEqual({});
+      const resp = adapter.getUnconfiguredResponse();
+      expect(resp.statusCode).toBe(503);
+      expect(resp.body.error.message).toBe('Anthropic OIDC token unavailable; retry shortly');
+      expect(resp.body.error.retryable).toBe(true);
       adapter.getOidcProvider().shutdown();
     });
 
-    it('is not configured without an OIDC audience', () => {
+    it('explains missing Databricks configuration instead of asking for ANTHROPIC_API_KEY', () => {
       const adapter = createAnthropicAdapter({ ...env, AWF_AUTH_OIDC_AUDIENCE: '' });
+
       expect(adapter.getOidcProvider()).toBeNull();
+      // Permanent misconfiguration: non-retryable, matching Anthropic WIF without Actions OIDC env.
+      const resp = adapter.getUnconfiguredResponse();
+      expect(resp.statusCode).toBe(403);
+      expect(resp.body.error.message).toMatch(/^Databricks OIDC is not configured/);
+      expect(resp.body.error.message).toContain('AWF_AUTH_OIDC_AUDIENCE');
+      expect(resp.body.error.retryable).toBe(false);
     });
 
     it('is not bound when ANTHROPIC_API_TARGET is left at its default', () => {
@@ -982,9 +1006,14 @@ describe('Auth Matrix — Databricks OIDC', () => {
       provider.shutdown();
     });
 
-    it('is not configured without a workspace host', () => {
+    it('explains missing Databricks configuration', () => {
       const adapter = createOpenAIAdapter({ ...env, AWF_AUTH_DATABRICKS_HOST: '' });
-      expect(adapter.getOidcProvider()).toBeNull();
+
+      const resp = adapter.getUnconfiguredResponse();
+      expect(resp.statusCode).toBe(403);
+      expect(resp.body.error.message).toMatch(/^Databricks OIDC is not configured/);
+      expect(resp.body.error.message).toContain('AWF_AUTH_DATABRICKS_HOST');
+      expect(resp.body.error.retryable).toBe(false);
     });
 
     it('is not bound to the default api.openai.com upstream', () => {

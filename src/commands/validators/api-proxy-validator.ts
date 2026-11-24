@@ -8,6 +8,10 @@ import {
 } from '../../api-proxy-config';
 import { validateCopilotModel } from '../../copilot-model';
 import { getLowerCaseProcessEnvValue } from '../../env-utils';
+import {
+  isDatabricksOidcConfigured,
+  isDatabricksOidcRoutedFor,
+} from '../../services/credentials/databricks-oidc-config';
 import { readEnvVarFromEnvFiles } from '../../parsers/env-parsers';
 import { NetworkOptionsResult } from './network-options';
 import { AgentOptionsResult } from './agent-options';
@@ -15,6 +19,30 @@ import { resolveCopilotBrokerRuntime } from '../../copilot-token-broker';
 import { selectHarness } from '../../model-information-contract/harness-observation';
 import type { EligibilityInput } from '../../model-information-contract/eligibility';
 import { supportsDockerHarnessObservation } from '../../docker-harness-observation';
+
+interface DatabricksOidcStatus {
+  configured: boolean;
+  openai: boolean;
+  anthropic: boolean;
+}
+
+/**
+ * Best-effort Databricks OIDC detection for status logging. Env files have not
+ * been validated yet at this stage (they may be missing or still a list), and
+ * this guard only emits warnings, so an unreadable file reads as "not
+ * configured" rather than aborting.
+ */
+function detectDatabricksOidc(config: WrapperConfig): DatabricksOidcStatus {
+  try {
+    return {
+      configured: isDatabricksOidcConfigured(config),
+      openai: isDatabricksOidcRoutedFor(config, 'openai'),
+      anthropic: isDatabricksOidcRoutedFor(config, 'anthropic'),
+    };
+  } catch {
+    return { configured: false, openai: false, anthropic: false };
+  }
+}
 
 /**
  * Validates and logs the API proxy configuration.  Emits warnings for missing
@@ -37,6 +65,9 @@ export function validateApiProxyOptions(
   const hasAnthropicWif =
     getLowerCaseProcessEnvValue('AWF_AUTH_TYPE') === 'github-oidc' &&
     getLowerCaseProcessEnvValue('AWF_AUTH_PROVIDER') === 'anthropic';
+  // Databricks OAuth token federation: the sidecar exchanges the GitHub OIDC
+  // token for each adapter whose upstream is explicitly a Databricks target.
+  const databricksOidc = detectDatabricksOidc(config);
   const apiProxyValidation = validateApiProxyConfig(
     config.enableApiProxy || false,
     !!config.openaiApiKey,
@@ -45,6 +76,7 @@ export function validateApiProxyOptions(
     !!config.geminiApiKey,
     hasAnthropicWif,
     !!config.googleApiKey,
+    databricksOidc.configured,
   );
 
   // Log API proxy status at info level for visibility
@@ -58,9 +90,16 @@ export function validateApiProxyOptions(
       ? 'true'
       : hasAnthropicWif
         ? 'true (wif)'
+        : databricksOidc.anthropic
+          ? 'true (databricks-oidc)'
+          : 'false';
+    const openaiStatus = config.openaiApiKey
+      ? 'true'
+      : databricksOidc.openai
+        ? 'true (databricks-oidc)'
         : 'false';
     logger.info(
-      `API proxy enabled: OpenAI=${!!config.openaiApiKey}, Anthropic=${anthropicStatus}, Copilot=${copilotStatus}, Gemini=${!!config.geminiApiKey}, Vertex=${!!config.googleApiKey}`,
+      `API proxy enabled: OpenAI=${openaiStatus}, Anthropic=${anthropicStatus}, Copilot=${copilotStatus}, Gemini=${!!config.geminiApiKey}, Vertex=${!!config.googleApiKey}`,
     );
   }
 

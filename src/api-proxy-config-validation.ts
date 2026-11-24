@@ -31,6 +31,7 @@ export function validateApiProxyConfig(
   hasGeminiKey?: boolean,
   hasAnthropicWif?: boolean,
   hasGoogleApiKey?: boolean,
+  hasDatabricksOidc?: boolean,
 ): ApiProxyValidationResult {
   if (!enableApiProxy) {
     return { enabled: false, warnings: [], debugMessages: [] };
@@ -39,7 +40,7 @@ export function validateApiProxyConfig(
   const warnings: string[] = [];
   const debugMessages: string[] = [];
 
-  if (!hasOpenaiKey && !hasAnthropicKey && !hasCopilotKey && !hasGeminiKey && !hasAnthropicWif && !hasGoogleApiKey) {
+  if (!hasOpenaiKey && !hasAnthropicKey && !hasCopilotKey && !hasGeminiKey && !hasAnthropicWif && !hasGoogleApiKey && !hasDatabricksOidc) {
     warnings.push('⚠️  API proxy enabled but no API keys found in environment');
     warnings.push('   Set OPENAI_API_KEY, ANTHROPIC_API_KEY, COPILOT_GITHUB_TOKEN, COPILOT_PROVIDER_API_KEY, GEMINI_API_KEY, or GOOGLE_API_KEY to use the proxy');
   }
@@ -51,6 +52,9 @@ export function validateApiProxyConfig(
   }
   if (hasAnthropicWif) {
     debugMessages.push('Anthropic WIF (GitHub OIDC) auth configured - OIDC token exchange will be used in sidecar');
+  }
+  if (hasDatabricksOidc) {
+    debugMessages.push('Databricks OAuth token federation (GitHub OIDC) configured - token exchange will be used in sidecar');
   }
   if (hasCopilotKey) {
     debugMessages.push('GitHub Copilot API key detected - will be held securely in sidecar');

@@ -10,6 +10,24 @@ const { logRequest } = require('../logging');
 
 const CLOUD_OIDC_PROVIDERS = new Set(['azure', 'aws', 'gcp', 'databricks']);
 
+const DATABRICKS_OIDC_UNCONFIGURED_MESSAGE =
+  'Databricks OIDC is not configured for this adapter: it requires ACTIONS_ID_TOKEN_REQUEST_URL and ' +
+  'ACTIONS_ID_TOKEN_REQUEST_TOKEN (permissions: id-token: write), AWF_AUTH_DATABRICKS_HOST, ' +
+  'AWF_AUTH_OIDC_AUDIENCE, and an explicit upstream target (see api-proxy logs for cloud_oidc_* events).';
+
+/**
+ * Return true when the caller selected Databricks workload identity federation.
+ * Whether a given adapter actually binds the token is decided separately by
+ * `resolveCloudOidcProviders` (explicit target, allowed host, selected origin).
+ *
+ * @param {Record<string, string|undefined>} env
+ * @returns {boolean}
+ */
+function isDatabricksOidcRequested(env) {
+  return (env.AWF_AUTH_TYPE || '').trim().toLowerCase() === 'github-oidc'
+    && (env.AWF_AUTH_PROVIDER || '').trim().toLowerCase() === 'databricks';
+}
+
 function targetOrigin(target) {
   if (typeof target !== 'string' || !target.trim()) return null;
   const value = target.trim();
@@ -398,6 +416,8 @@ function createProviderOidcHeaderStrategy(env, oidcAuthOptions = {}, {
 }
 
 module.exports = {
+  DATABRICKS_OIDC_UNCONFIGURED_MESSAGE,
+  isDatabricksOidcRequested,
   isCloudOidcTargetAllowed,
   matchesTargetOrigin,
   hasSelectedCloudOidcTarget,

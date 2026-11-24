@@ -28,7 +28,11 @@ const {
 const { createStandardProviderAdapter } = require('../adapter-factory');
 const { OPENAI_ENV, COPILOT_ENV } = require('../provider-env-constants');
 const { bearerAuthHeaders } = require('./auth-headers');
-const { matchesTargetOrigin } = require('./cloud-oidc-init');
+const {
+  matchesTargetOrigin,
+  isDatabricksOidcRequested,
+  DATABRICKS_OIDC_UNCONFIGURED_MESSAGE,
+} = require('./cloud-oidc-init');
 
 /**
  * Create the OpenAI provider adapter.
@@ -67,6 +71,10 @@ function createOpenAIAdapter(env, deps = {}) {
     headerName: customAuthHeader || undefined,
     scheme: authScheme || undefined,
   });
+  // Cloud OIDC tokens are only bound to an explicitly configured upstream
+  // (OPENAI_API_TARGET or the Azure BYOK provider URL), never the default.
+  const allowCloudOidc = !!(env[OPENAI_ENV.TARGET] || (copilotAzureByokEnabled && copilotByokTarget));
+  const databricksOidcRequested = isDatabricksOidcRequested(env) && allowCloudOidc;
   return createStandardProviderAdapter(env, deps, {
     envVars: {
       keyEnvVar: OPENAI_ENV.KEY,
@@ -100,9 +108,7 @@ function createOpenAIAdapter(env, deps = {}) {
     }),
     createOidcAuthOptions: () => ({
       allowOpenAiWif: openAiWifRequested,
-      // Cloud OIDC tokens are only bound to an explicitly configured upstream
-      // (OPENAI_API_TARGET or the Azure BYOK provider URL), never the default.
-      allowCloudOidc: !!(env[OPENAI_ENV.TARGET] || (copilotAzureByokEnabled && copilotByokTarget)),
+      allowCloudOidc,
     }),
     createAdapterMethodsOptions: ({
       authProvider,
@@ -131,10 +137,10 @@ function createOpenAIAdapter(env, deps = {}) {
         message: 'OpenAI proxy not configured (no OPENAI_API_KEY/COPILOT_PROVIDER_API_KEY or OIDC auth)',
       },
       unconfiguredResponseWhen: buildOidcUnavailableScaffold({
-        requested: openAiWifRequested || oidcConfigured,
+        requested: openAiWifRequested || databricksOidcRequested || oidcConfigured,
         configured: oidcConfigured,
         unavailableMessage: 'OpenAI OIDC token unavailable; retry shortly',
-        unconfiguredMessage: 'OpenAI WIF requires ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN (permissions: id-token: write), AWF_AUTH_OPENAI_IDENTITY_PROVIDER_ID, and AWF_AUTH_OPENAI_SERVICE_ACCOUNT_ID.',
+        unconfiguredMessage: databricksOidcRequested ? DATABRICKS_OIDC_UNCONFIGURED_MESSAGE : 'OpenAI WIF requires ACTIONS_ID_TOKEN_REQUEST_URL and ACTIONS_ID_TOKEN_REQUEST_TOKEN (permissions: id-token: write), AWF_AUTH_OPENAI_IDENTITY_PROVIDER_ID, and AWF_AUTH_OPENAI_SERVICE_ACCOUNT_ID.',
       }).unconfiguredResponseWhen,
       extra: {
         /** Port 10000 always counts toward the startup validation latch. */

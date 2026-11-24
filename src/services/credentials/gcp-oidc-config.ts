@@ -1,17 +1,5 @@
 import { WrapperConfig } from '../../types';
-import { getConfigEnvValue } from '../../env-utils';
-
-function resolveConfigOrEnvValue(config: WrapperConfig, configKey: keyof WrapperConfig, envVar: string): string | undefined {
-  const configValue = config[configKey];
-  if (typeof configValue === 'string' && configValue.trim()) {
-    return configValue.trim();
-  }
-  const configEnvValue = getConfigEnvValue(config, envVar)?.trim();
-  if (configEnvValue) {
-    return configEnvValue;
-  }
-  return process.env[envVar]?.trim() || undefined;
-}
+import { resolveConfigOrEnvValue } from './oidc-config-values';
 
 /**
  * Returns true when GCP Workload Identity Federation should enable Google
