@@ -279,6 +279,9 @@ AWF settings MAY be supplied via config files, including stdin (`--config -`).
 - `apiProxy.auth.anthropicServiceAccountId` → *(config-only; maps to `AWF_AUTH_ANTHROPIC_SERVICE_ACCOUNT_ID`)*
 - `apiProxy.auth.anthropicWorkspaceId` → *(config-only; maps to `AWF_AUTH_ANTHROPIC_WORKSPACE_ID`)*
 - `apiProxy.auth.anthropicTokenUrl` → *(config-only; maps to `AWF_AUTH_ANTHROPIC_TOKEN_URL`)*
+- `apiProxy.auth.databricksHost` → *(config-only; maps to `AWF_AUTH_DATABRICKS_HOST`)*
+- `apiProxy.auth.databricksClientId` → *(config-only; maps to `AWF_AUTH_DATABRICKS_CLIENT_ID`)*
+- `apiProxy.auth.databricksScope` → *(config-only; maps to `AWF_AUTH_DATABRICKS_SCOPE`)*
 - `apiProxy.targets.<provider>.host` → `--<provider>-api-target` *(except `antigravity.host`, which maps to the Gemini flag below). Accepts a bare hostname or a full URL; a bare hostname or explicit `https://` URL both dial the target over HTTPS on port 443 (the default), while an explicit `http://` URL dials it in cleartext on port 80 — matching the runner-side allowlist, which already adds an `http://`-scoped allowlist entry for such targets. Custom ports are not supported: `http://host` always dials port 80 and `https://host` always dials port 443.)*
 - `apiProxy.targets.antigravity.host` → `--gemini-api-target`
 - `apiProxy.targets.copilot.extraHeaders` → *(config-only; non-sensitive supplemental BYOK headers, maps to `AWF_BYOK_EXTRA_HEADERS`)*
@@ -801,6 +804,33 @@ omitted.
 `anthropicTokenUrl` is non-sensitive and SHOULD be supplied via AWF config (including stdin config via `--config -`); env var support exists for compatibility.
 
 Default OIDC audience: `https://api.anthropic.com`
+
+#### 9.5.5 Databricks Provider (`provider: databricks`)
+
+Exchanges the GitHub OIDC JWT for a Databricks OAuth access token via the
+workspace token endpoint (`https://<databricksHost>/oidc/v1/token`) using an
+RFC 8693 token exchange with `scope=all-apis`. The sidecar injects the
+resulting token as a Bearer `Authorization` header on upstream requests.
+
+| Config path | Environment variable | Required | Default |
+|-------------|----------------------|----------|---------|
+| `apiProxy.auth.databricksHost` | `AWF_AUTH_DATABRICKS_HOST` | ✅ | — |
+| `apiProxy.auth.oidcAudience` | `AWF_AUTH_OIDC_AUDIENCE` | ✅ | — |
+| `apiProxy.auth.databricksClientId` | `AWF_AUTH_DATABRICKS_CLIENT_ID` | Conditional¹ | — |
+| `apiProxy.auth.databricksScope` | `AWF_AUTH_DATABRICKS_SCOPE` | No | `all-apis` |
+
+¹ Required for service principal federation policies; MUST be omitted for
+account-wide federation policies.
+
+There is no default OIDC audience: it MUST match an audience in the
+Databricks federation policy (Databricks recommends the account ID).
+`databricksHost` MUST use `https`; any path or query is ignored.
+
+A conforming implementation MUST bind the token only to adapters whose
+upstream target is explicitly configured, under the same rules as the Azure,
+AWS, and GCP providers. For the OpenAI and Anthropic adapters it SHALL also
+route the agent to the sidecar from this configuration alone, without a
+static key.
 
 ### 9.6 DIFC Proxy Credential Isolation
 

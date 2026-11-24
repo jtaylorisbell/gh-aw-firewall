@@ -109,14 +109,28 @@ class BaseOidcTokenProvider {
     this._setCachedValue(value);
     this._expiresAt = now + expiresIn;
 
-    const refreshInSecs = Math.max(
+    this._scheduleRefresh(Math.floor(this._getRefreshDelaySecs(expiresIn) * 1000));
+  }
+
+  /**
+   * Seconds to wait before proactively refreshing a value with the given lifetime.
+   *
+   * The default keeps at least MIN_REFRESH_MARGIN_SECS of headroom, which suits
+   * long-lived tokens. Providers whose tokens can live for only a few minutes
+   * should override this: for lifetimes at or below the margin the default
+   * returns 0 and would refresh continuously.
+   *
+   * @param {number} expiresIn - token lifetime in seconds
+   * @returns {number}
+   */
+  _getRefreshDelaySecs(expiresIn) {
+    return Math.max(
       0,
       Math.min(
         expiresIn * REFRESH_FACTOR,
         expiresIn - MIN_REFRESH_MARGIN_SECS
       )
     );
-    this._scheduleRefresh(Math.floor(refreshInSecs * 1000));
   }
 
   /** @param {number} ms */

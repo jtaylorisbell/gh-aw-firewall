@@ -406,7 +406,7 @@ function buildModelRoutingEnv(config: WrapperConfig): Record<string, string> {
 }
 
 /**
- * Builds OIDC authentication environment variables: Azure/AWS/GCP/Anthropic OIDC provider vars,
+ * Builds OIDC authentication environment variables: Azure/AWS/GCP/Anthropic/Databricks OIDC provider vars,
  * GitHub Actions OIDC runtime tokens, and custom auth headers for internal AI gateways.
  */
 function buildOidcEnv(config: WrapperConfig): Record<string, string> {
@@ -416,7 +416,7 @@ function buildOidcEnv(config: WrapperConfig): Record<string, string> {
     || '';
 
   return {
-    // OIDC authentication (Azure, AWS, GCP, Anthropic)
+    // OIDC authentication (Azure, AWS, GCP, Anthropic, Databricks)
     ...pickEnvVars(...OIDC_AUTH_ENV_VARS, 'AWF_AUTH_ANTHROPIC_TOKEN_URL'),
     // GitHub Actions OIDC runtime tokens (needed by OIDC token provider in api-proxy)
     ...(normalizedAuthType === 'github-oidc' && pickEnvVars(

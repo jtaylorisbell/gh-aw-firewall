@@ -33,7 +33,7 @@ Auth evaluation in the api-proxy is determined by the combination of these indep
 |---|-----------|--------------|--------|
 | 1 | Engine | Discrete ports 10000, 10001, 10002, 10003, 10004, 10005 | openai, anthropic, copilot, gemini, vertex, foundry |
 | 2 | Auth Type | `AWF_AUTH_TYPE` | `api-key` (default), `github-oidc` |
-| 3 | OIDC Provider | `AWF_AUTH_PROVIDER` | `azure`, `aws`, `gcp`, `anthropic`, `openai` |
+| 3 | OIDC Provider | `AWF_AUTH_PROVIDER` | `azure`, `aws`, `gcp`, `anthropic`, `openai`, `databricks` |
 | 4 | Instance Type | `GITHUB_SERVER_URL` | github.com, GHEC (`*.ghe.com`), GHES |
 | 5 | BYOK Mode | `COPILOT_PROVIDER_TYPE` | unset (standard), `azure` |
 | 6 | Target Override | `{PROVIDER}_API_TARGET` | Any hostname |
@@ -110,6 +110,18 @@ The API-proxy environment pipeline keeps the federation settings in the sidecar.
 
 **Official docs:** [OpenAI workload identity federation](https://developers.openai.com/api/docs/guides/workload-identity-federation) · [GitHub Actions setup](https://developers.openai.com/api/docs/guides/workload-identity-federation/github-actions)
 
+### Databricks OIDC
+
+When `AWF_AUTH_TYPE=github-oidc`, `AWF_AUTH_PROVIDER=databricks`, and `OPENAI_API_TARGET` is the workspace host, with `OPENAI_API_BASE_PATH=/ai-gateway/mlflow/v1` for the OpenAI-compatible API of [Unity Gateway](https://docs.databricks.com/aws/en/unity-gateway/concepts):
+
+| Setting | Value |
+|---------|-------|
+| Header sent upstream | `Authorization: Bearer <databricks_oauth_token>` |
+| Token exchange | GitHub JWT → `https://<workspace>/oidc/v1/token` (RFC 8693) |
+| Agent routing | `OPENAI_BASE_URL` and placeholders are set from this configuration alone; no static `OPENAI_API_KEY` is needed |
+
+See [Databricks (OAuth token federation)](#databricks-oauth-token-federation) for the exchange parameters.
+
 ### Custom Auth Header
 
 `AWF_OPENAI_AUTH_HEADER` overrides the header name used for static keys and cloud OIDC tokens. OpenAI native WIF always uses `Authorization: Bearer`, as required by the OpenAI API.
@@ -159,6 +171,17 @@ AWF follows Anthropic's SDK behavior: JWT-bearer `POST /v1/oauth/token` exchange
 :::
 
 **Official references:** [Anthropic WIF documentation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) · [Anthropic TypeScript SDK federation exchange](https://raw.githubusercontent.com/anthropics/anthropic-sdk-typescript/3b45cd3b69c956ac63384fdb09ce1d8109f3fa80/src/lib/credentials/oidc-federation.ts)
+
+### Databricks OIDC
+
+When `AWF_AUTH_TYPE=github-oidc`, `AWF_AUTH_PROVIDER=databricks`, and `ANTHROPIC_API_TARGET` is the workspace host, with `ANTHROPIC_API_BASE_PATH=/ai-gateway/anthropic` for the Anthropic Messages API of [Unity Gateway](https://docs.databricks.com/aws/en/unity-gateway/concepts) (the base URL Databricks documents for Claude Code):
+
+| Setting | Value |
+|---------|-------|
+| Header sent upstream | `Authorization: Bearer <databricks_oauth_token>` (NOT `x-api-key`) |
+| Agent routing | `ANTHROPIC_BASE_URL` and placeholders are set from this configuration alone; no static `ANTHROPIC_API_KEY` is needed |
+
+See [Databricks (OAuth token federation)](#databricks-oauth-token-federation) for the exchange parameters.
 
 ### Custom Auth Header
 
@@ -557,6 +580,7 @@ When `AWF_AUTH_TYPE=github-oidc` with Copilot:
 | Azure | `Authorization: Bearer <entra_token>` | Via `oidc-token-provider.js` |
 | GCP | `Authorization: Bearer <gcp_token>` | Via `gcp-oidc-token-provider.js` |
 | AWS | SigV4 `Authorization` plus `x-amz-*` signing headers | Via `aws-oidc-token-provider.js` and `aws-sigv4.js` |
+| Databricks | `Authorization: Bearer <databricks_oauth_token>` | Via `databricks-oidc-token-provider.js`; bound to the `COPILOT_PROVIDER_BASE_URL` origin |
 
 :::caution[Agent routing is credential-triggered]
 Cloud OIDC configuration can initialize credentials in the sidecar, but the agent's OpenAI and Copilot base URLs/placeholders are currently configured only when the corresponding static OpenAI/Copilot credential is present. Treat Azure, GCP, and AWS OIDC support for OpenAI/Copilot as sidecar authentication capability rather than a complete keyless agent-routing path until OIDC-aware agent routing is implemented for those adapters.
@@ -756,6 +780,28 @@ When both project and location are set, native `v1`/`v1beta1` Vertex model paths
 
 **Official references:** [Anthropic WIF documentation](https://platform.claude.com/docs/en/manage-claude/workload-identity-federation) · [Anthropic TypeScript SDK credential constants](https://raw.githubusercontent.com/anthropics/anthropic-sdk-typescript/3b45cd3b69c956ac63384fdb09ce1d8109f3fa80/src/lib/credentials/types.ts)
 
+### Databricks (OAuth token federation)
+
+| Config | Env Var | Required |
+|--------|---------|----------|
+| Workspace host | `AWF_AUTH_DATABRICKS_HOST` | ✅ (https URL or bare hostname; path/query ignored) |
+| Audience | `AWF_AUTH_OIDC_AUDIENCE` | ✅ (no default; must be allowed by the federation policy, which Databricks recommends setting to the account ID) |
+| Service principal client ID | `AWF_AUTH_DATABRICKS_CLIENT_ID` | Conditional¹ |
+| Scope | `AWF_AUTH_DATABRICKS_SCOPE` | ❌ (default: `all-apis`) |
+
+¹ Required for service principal federation policies. Omit it for account-wide federation policies, which reject `client_id`.
+
+Unity Gateway also defines a narrower `ai-gateway` scope. `all-apis` stays the default because it is what Databricks' token-exchange examples request and what the legacy regional `*.ai-gateway.*` host requires; confirm that your federation policy issues `ai-gateway`-scoped tokens before narrowing `AWF_AUTH_DATABRICKS_SCOPE`.
+
+**Token exchange:** `POST https://<workspace>/oidc/v1/token` (`application/x-www-form-urlencoded`) with `grant_type=urn:ietf:params:oauth:grant-type:token-exchange`, `subject_token_type=urn:ietf:params:oauth:token-type:jwt`, `subject_token=<GitHub JWT>`, `scope`, and `client_id` when configured. This matches the Databricks SDKs' `github-oidc` auth type.
+
+**Token lifetime:** Databricks issues the access token with the same expiry as the GitHub JWT and returns no refresh token. The sidecar refreshes at 75% of the reported `expires_in` (minimum 10 s, capped at 1 h), minting a new GitHub JWT each time, and assumes 300 s when `expires_in` is absent.
+
+**Binding:** Same target binding as Azure/AWS/GCP: the token is attached only to an adapter whose upstream is explicitly configured, never to `api.openai.com`, `api.anthropic.com`, or Copilot hosts. See [Cloud OIDC target binding](api-proxy-sidecar.md#cloud-oidc-target-binding).
+
+**Implementation:** `containers/api-proxy/databricks-oidc-token-provider.js`
+**Official docs:** [Authenticate with an identity provider token](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-federation-exchange) · [GitHub Actions federation policy](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github)
+
 ---
 
 ## GitHub Instance Types
@@ -836,9 +882,11 @@ Adds `x-session-id` header automatically in BYOK mode unless already present.
 | OpenAI | AWS Bedrock OIDC + SigV4 | — | ✅ | `openai.js`, `aws-oidc-token-provider.js`, `aws-sigv4.test.js` |
 | OpenAI | GCP OIDC | — | ✅ | `openai.js`, `gcp-oidc-token-provider.js` |
 | OpenAI | Native WIF | — | ✅ | `openai.js`, `openai-oidc-token-provider.js` |
+| OpenAI | Databricks OIDC | — | ✅ | `openai.js`, `databricks-oidc-token-provider.js`, `server.auth-matrix.test.js` |
 | Anthropic | Static key | — | ✅ | `anthropic.js` |
 | Anthropic | WIF | — | ✅ | `anthropic.js`, `anthropic-oidc-token-provider.js` |
 | Anthropic | Custom header | — | ✅ | `anthropic.js` |
+| Anthropic | Databricks OIDC | — | ✅ | `anthropic.js`, `databricks-oidc-token-provider.js`, `server.auth-matrix.test.js` |
 | Copilot | GitHub token | github.com | ✅ | `copilot.js`, `copilot-auth.js` |
 | Copilot | GitHub token | GHEC | ✅ | `copilot.js`, `copilot-auth.js` |
 | Copilot | GitHub token | GHES | ✅ | `copilot.js`, `copilot-auth.js` |
@@ -848,6 +896,7 @@ Adds `x-session-id` header automatically in BYOK mode unless already present.
 | Copilot | Azure OIDC | — | ✅ | `copilot-adapter-enterprise.test.js` |
 | Copilot | AWS Bedrock OIDC + SigV4 | — | ✅ | `aws-oidc-token-provider.js`, `server.auth-matrix.test.js` |
 | Copilot | GCP OIDC | — | ✅ | `gcp-oidc-token-provider.js`, `server.auth-matrix.test.js` |
+| Copilot | Databricks OIDC | — | ✅ | `databricks-oidc-token-provider.js`, `server.auth-matrix.test.js` |
 | Copilot | GHES + BYOK | GHES | ✅ | `server.auth-matrix.test.js` |
 | Gemini | Static key | — | ✅ | `google-adapter.js`, `google-provider-specs.js` |
 | Gemini | GCP WIF | — | ✅ | `google-adapter.js`, `gcp-oidc-token-provider.js`, `server.auth-matrix.test.js` |

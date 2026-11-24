@@ -5,7 +5,7 @@
  *
  * Port: 10000  (also serves as the management port for /health, /metrics, /reflect)
  * Auth: Bearer token via Authorization header (static key or OIDC)
- * Credentials: OPENAI_API_KEY or AWF_AUTH_TYPE=github-oidc (for Azure Entra or native OpenAI WIF)
+ * Credentials: OPENAI_API_KEY or AWF_AUTH_TYPE=github-oidc (Azure Entra, Databricks, or native OpenAI WIF)
  * Target: OPENAI_API_TARGET  (default: api.openai.com)
  * Base path: OPENAI_API_BASE_PATH  (default: /v1 for the public endpoint)
  */
@@ -52,7 +52,7 @@ function createOpenAIAdapter(env, deps = {}) {
 
   const hostedWebPolicy = parseCodexHostedWebPolicy(env.AWF_CODEX_HOSTED_WEB_POLICY);
 
-  // OIDC auth strategy (Azure OpenAI, AWS Bedrock, GCP Vertex AI)
+  // OIDC auth strategy (Azure OpenAI, AWS Bedrock, GCP Vertex AI, Databricks)
   // Azure OpenAI BYOK uses the `api-key` header instead of `Authorization: Bearer`
   // (but OIDC auth still requires `Authorization: Bearer` unless explicitly overridden);
   // buildAuthHeaderFn centralises that "custom header vs. Bearer" branching.

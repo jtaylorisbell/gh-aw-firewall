@@ -51,6 +51,33 @@ describe('buildOpenAiCredentialEnv', () => {
     expect(buildOpenAiCredentialEnv({ config, proxyIp })).toEqual({});
   });
 
+  it('routes through the proxy for Databricks OIDC with an explicit OpenAI target', () => {
+    const config = {
+      ...baseConfig,
+      authType: 'github-oidc',
+      authProvider: 'databricks',
+      authDatabricksHost: 'https://dbc-1234.cloud.databricks.com',
+      authOidcAudience: 'databricks-account-id',
+      openaiApiTarget: 'dbc-1234.cloud.databricks.com',
+    } as WrapperConfig;
+
+    const result = buildOpenAiCredentialEnv({ config, proxyIp });
+
+    expect(result.OPENAI_BASE_URL).toBe(`http://${proxyIp}:10000`);
+    expect(result.OPENAI_API_KEY).toBe('sk-placeholder-for-api-proxy');
+  });
+
+  it('does not route Databricks OIDC when the OpenAI target is left at its default', () => {
+    const config = {
+      ...baseConfig,
+      authType: 'github-oidc',
+      authProvider: 'databricks',
+      authDatabricksHost: 'https://dbc-1234.cloud.databricks.com',
+      authOidcAudience: 'databricks-account-id',
+    } as WrapperConfig;
+    expect(buildOpenAiCredentialEnv({ config, proxyIp })).toEqual({});
+  });
+
   it('real openaiApiKey is NOT present in agent env (credential isolation)', () => {
     const realKey = 'sk-real-secret-key';
     const config = { ...baseConfig, openaiApiKey: realKey } as WrapperConfig;

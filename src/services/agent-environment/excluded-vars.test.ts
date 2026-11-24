@@ -91,6 +91,13 @@ describe('buildExclusionSet', () => {
       expect(excluded.has('AWF_AUTH_OPENAI_SERVICE_ACCOUNT_ID')).toBe(true);
     });
 
+    it('should exclude Databricks OIDC configuration', () => {
+      const excluded = buildExclusionSet(config);
+      expect(excluded.has('AWF_AUTH_DATABRICKS_HOST')).toBe(true);
+      expect(excluded.has('AWF_AUTH_DATABRICKS_CLIENT_ID')).toBe(true);
+      expect(excluded.has('AWF_AUTH_DATABRICKS_SCOPE')).toBe(true);
+    });
+
     it('should exclude OPENAI_KEY', () => {
       expect(buildExclusionSet(config).has('OPENAI_KEY')).toBe(true);
     });

@@ -104,6 +104,9 @@ export function mapAwfFileConfigToCliOptions(config: AwfFileConfig): Record<stri
     authAnthropicServiceAccountId: config.apiProxy?.auth?.anthropicServiceAccountId,
     authAnthropicWorkspaceId: config.apiProxy?.auth?.anthropicWorkspaceId,
     anthropicTokenUrl: config.apiProxy?.auth?.anthropicTokenUrl,
+    authDatabricksHost: config.apiProxy?.auth?.databricksHost,
+    authDatabricksClientId: config.apiProxy?.auth?.databricksClientId,
+    authDatabricksScope: config.apiProxy?.auth?.databricksScope,
 
     sslBump: config.security?.sslBump,
     legacySecurity: config.security?.legacySecurity ??

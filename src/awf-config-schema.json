@@ -736,7 +736,7 @@
         },
         "auth": {
           "type": "object",
-          "description": "Authentication configuration for the API proxy sidecar. Enables OIDC-based credential exchange (e.g., GitHub OIDC → Azure AD, AWS STS, GCP Workload Identity, or Anthropic Workload Identity Federation). See docs/awf-config-spec.md §9.5.",
+          "description": "Authentication configuration for the API proxy sidecar. Enables OIDC-based credential exchange (e.g., GitHub OIDC → Azure AD, AWS STS, GCP Workload Identity, Anthropic Workload Identity Federation, or Databricks OAuth token federation). See docs/awf-config-spec.md §9.5.",
           "additionalProperties": false,
           "properties": {
             "type": {
@@ -752,14 +752,15 @@
                 "azure",
                 "aws",
                 "gcp",
-                "anthropic"
+                "anthropic",
+                "databricks"
               ],
               "description": "Cloud provider for OIDC token exchange. Determines which token exchange protocol is used. Maps to AWF_AUTH_PROVIDER.",
               "default": "azure"
             },
             "oidcAudience": {
               "type": "string",
-              "description": "Audience claim for the GitHub OIDC token. Provider-specific defaults apply when omitted: Azure='api://AzureADTokenExchange', AWS='sts.amazonaws.com', GCP=workloadIdentityProvider value, Anthropic='https://api.anthropic.com'. Maps to AWF_AUTH_OIDC_AUDIENCE."
+              "description": "Audience claim for the GitHub OIDC token. Provider-specific defaults apply when omitted: Azure='api://AzureADTokenExchange', AWS='sts.amazonaws.com', GCP=workloadIdentityProvider value, Anthropic='https://api.anthropic.com'. Databricks has no default: set it to an audience allowed by your Databricks federation policy (Databricks recommends the account ID); required when provider is 'databricks'. Maps to AWF_AUTH_OIDC_AUDIENCE."
             },
             "azureTenantId": {
               "type": "string",
@@ -830,6 +831,19 @@
               "type": "string",
               "description": "Anthropic OAuth token exchange endpoint override. Non-sensitive config and maps to AWF_AUTH_ANTHROPIC_TOKEN_URL.",
               "default": "https://api.anthropic.com/v1/oauth/token"
+            },
+            "databricksHost": {
+              "type": "string",
+              "description": "Databricks workspace URL or hostname whose OAuth token endpoint (<host>/oidc/v1/token) receives the GitHub OIDC token, e.g. 'https://dbc-1234.cloud.databricks.com'. Must use https; any path or query is ignored. Required when provider is 'databricks'. Maps to AWF_AUTH_DATABRICKS_HOST."
+            },
+            "databricksClientId": {
+              "type": "string",
+              "description": "Application (client) ID of the Databricks service principal that owns the federation policy. Required for service principal federation policies; omit it for account-wide federation policies. Maps to AWF_AUTH_DATABRICKS_CLIENT_ID."
+            },
+            "databricksScope": {
+              "type": "string",
+              "description": "OAuth scope requested in the Databricks token exchange. Maps to AWF_AUTH_DATABRICKS_SCOPE.",
+              "default": "all-apis"
             }
           },
           "required": [
@@ -886,10 +900,28 @@
                 ]
               },
               "else": {
-                "required": [
-                  "azureTenantId",
-                  "azureClientId"
-                ]
+                "if": {
+                  "properties": {
+                    "provider": {
+                      "const": "databricks"
+                    }
+                  },
+                  "required": [
+                    "provider"
+                  ]
+                },
+                "then": {
+                  "required": [
+                    "databricksHost",
+                    "oidcAudience"
+                  ]
+                },
+                "else": {
+                  "required": [
+                    "azureTenantId",
+                    "azureClientId"
+                  ]
+                }
               }
             }
           }

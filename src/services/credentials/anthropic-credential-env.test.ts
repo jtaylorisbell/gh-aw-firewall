@@ -32,6 +32,34 @@ describe('buildAnthropicCredentialEnv', () => {
     expect(result).toEqual({});
   });
 
+  it('routes through the proxy for Databricks OIDC with an explicit Anthropic target', () => {
+    const config = {
+      ...baseConfig,
+      authType: 'github-oidc',
+      authProvider: 'databricks',
+      authDatabricksHost: 'https://dbc-1234.cloud.databricks.com',
+      authOidcAudience: 'databricks-account-id',
+      anthropicApiTarget: 'dbc-1234.cloud.databricks.com',
+    } as WrapperConfig;
+
+    const result = buildAnthropicCredentialEnv({ config, proxyIp });
+
+    expect(result.ANTHROPIC_BASE_URL).toBe(`http://${proxyIp}:10001`);
+    expect(result.ANTHROPIC_AUTH_TOKEN).toMatch(/^sk-ant-/);
+    expect(result.CLAUDE_CODE_API_KEY_HELPER).toBe('/usr/local/bin/get-claude-key.sh');
+  });
+
+  it('does not route Databricks OIDC when the Anthropic target is left at its default', () => {
+    const config = {
+      ...baseConfig,
+      authType: 'github-oidc',
+      authProvider: 'databricks',
+      authDatabricksHost: 'https://dbc-1234.cloud.databricks.com',
+      authOidcAudience: 'databricks-account-id',
+    } as WrapperConfig;
+    expect(buildAnthropicCredentialEnv({ config, proxyIp })).toEqual({});
+  });
+
   it('returns env additions when anthropicApiKey is set', () => {
     const config = { ...baseConfig, anthropicApiKey: 'sk-ant-real-key' } as WrapperConfig;
     const result = buildAnthropicCredentialEnv({ config, proxyIp });

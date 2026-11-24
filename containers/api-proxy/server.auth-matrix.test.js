@@ -912,3 +912,114 @@ describe('Auth Matrix — cloud OIDC target binding', () => {
     expect(adapter.getBasePath()).toBe('/openai');
   });
 });
+
+// ---------------------------------------------------------------------------
+// Databricks workload identity federation
+// ---------------------------------------------------------------------------
+
+describe('Auth Matrix — Databricks OIDC', () => {
+  const WORKSPACE = 'dbc-1234.cloud.databricks.com';
+  const DATABRICKS_ENV = {
+    AWF_AUTH_TYPE: 'github-oidc',
+    AWF_AUTH_PROVIDER: 'databricks',
+    ACTIONS_ID_TOKEN_REQUEST_URL: 'http://localhost/token',
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'runtime-token',
+    AWF_AUTH_DATABRICKS_HOST: `https://${WORKSPACE}`,
+    AWF_AUTH_DATABRICKS_CLIENT_ID: 'sp-application-id',
+    AWF_AUTH_OIDC_AUDIENCE: 'databricks-account-id',
+  };
+
+  describe('Anthropic adapter (Claude via /serving-endpoints/anthropic)', () => {
+    const env = {
+      ...DATABRICKS_ENV,
+      ANTHROPIC_API_TARGET: WORKSPACE,
+      ANTHROPIC_API_BASE_PATH: '/serving-endpoints/anthropic',
+    };
+
+    it('sends Authorization: Bearer with the Databricks token instead of x-api-key', () => {
+      const adapter = createAnthropicAdapter(env);
+      const provider = injectOidcToken(adapter, 'dbx-oauth-token');
+
+      const headers = adapter.getAuthHeaders(fakeReq('/v1/messages'));
+      expect(headers.Authorization).toBe('Bearer dbx-oauth-token');
+      expect(headers['x-api-key']).toBeUndefined();
+      provider.shutdown();
+    });
+
+    it('fails closed with no auth headers until the first token is acquired', () => {
+      const adapter = createAnthropicAdapter(env);
+
+      expect(adapter.isEnabled()).toBe(false);
+      expect(adapter.getAuthHeaders(fakeReq('/v1/messages'))).toEqual({});
+      adapter.getOidcProvider().shutdown();
+    });
+
+    it('is not configured without an OIDC audience', () => {
+      const adapter = createAnthropicAdapter({ ...env, AWF_AUTH_OIDC_AUDIENCE: '' });
+      expect(adapter.getOidcProvider()).toBeNull();
+    });
+
+    it('is not bound when ANTHROPIC_API_TARGET is left at its default', () => {
+      const adapter = createAnthropicAdapter(DATABRICKS_ENV);
+      expect(adapter.getOidcProvider()).toBeNull();
+      expect(adapter.getReflectionInfo().auth_type).toBe('static-key');
+    });
+  });
+
+  describe('OpenAI adapter (Codex via /serving-endpoints)', () => {
+    const env = {
+      ...DATABRICKS_ENV,
+      OPENAI_API_TARGET: WORKSPACE,
+      OPENAI_API_BASE_PATH: '/serving-endpoints',
+    };
+
+    it('sends Authorization: Bearer with the Databricks token', () => {
+      const adapter = createOpenAIAdapter(env);
+      const provider = injectOidcToken(adapter, 'dbx-oauth-token');
+
+      expect(adapter.getAuthHeaders(fakeReq())).toEqual({ Authorization: 'Bearer dbx-oauth-token' });
+      expect(adapter.getReflectionInfo().auth_type).toBe('github-oidc/databricks');
+      provider.shutdown();
+    });
+
+    it('is not configured without a workspace host', () => {
+      const adapter = createOpenAIAdapter({ ...env, AWF_AUTH_DATABRICKS_HOST: '' });
+      expect(adapter.getOidcProvider()).toBeNull();
+    });
+
+    it('is not bound to the default api.openai.com upstream', () => {
+      const adapter = createOpenAIAdapter(DATABRICKS_ENV);
+      expect(adapter.getOidcProvider()).toBeNull();
+    });
+  });
+
+  describe('Copilot adapter (BYOK via COPILOT_PROVIDER_BASE_URL)', () => {
+    it('sends Authorization: Bearer with the Databricks token', () => {
+      const adapter = createCopilotAdapter({
+        ...DATABRICKS_ENV,
+        COPILOT_API_TARGET: WORKSPACE,
+        COPILOT_PROVIDER_BASE_URL: `https://${WORKSPACE}/serving-endpoints`,
+      });
+      const provider = injectOidcToken(adapter, 'dbx-oauth-token');
+
+      const headers = adapter.getAuthHeaders(fakeReq());
+      expect(headers.Authorization).toBe('Bearer dbx-oauth-token');
+      provider.shutdown();
+    });
+  });
+
+  it('shares one workspace token endpoint across adapters bound to the same origin', () => {
+    const env = {
+      ...DATABRICKS_ENV,
+      OPENAI_API_TARGET: WORKSPACE,
+      ANTHROPIC_API_TARGET: WORKSPACE,
+    };
+    const openai = createOpenAIAdapter(env);
+    const anthropic = createAnthropicAdapter(env);
+
+    expect(openai.getOidcProvider()._tokenEndpoint).toBe(`https://${WORKSPACE}/oidc/v1/token`);
+    expect(anthropic.getOidcProvider()._tokenEndpoint).toBe(`https://${WORKSPACE}/oidc/v1/token`);
+    openai.getOidcProvider().shutdown();
+    anthropic.getOidcProvider().shutdown();
+  });
+});

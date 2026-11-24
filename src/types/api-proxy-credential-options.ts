@@ -191,7 +191,7 @@ export interface ApiProxyCredentialOptions {
   /** Authentication type. Currently only `'github-oidc'` is supported. Maps to `AWF_AUTH_TYPE`. */
   authType?: string;
 
-  /** Cloud provider for OIDC token exchange (`'azure'`, `'aws'`, `'gcp'`, `'anthropic'`). Maps to `AWF_AUTH_PROVIDER`. */
+  /** Cloud provider for OIDC token exchange (`'azure'`, `'aws'`, `'gcp'`, `'anthropic'`, `'databricks'`). Maps to `AWF_AUTH_PROVIDER`. */
   authProvider?: string;
 
   /** Audience claim for the GitHub OIDC token. Maps to `AWF_AUTH_OIDC_AUDIENCE`. */
@@ -238,4 +238,17 @@ export interface ApiProxyCredentialOptions {
 
   /** Anthropic workspace ID. Maps to `AWF_AUTH_ANTHROPIC_WORKSPACE_ID`. */
   authAnthropicWorkspaceId?: string;
+
+  /** Databricks workspace URL or hostname for the OAuth token exchange. Maps to `AWF_AUTH_DATABRICKS_HOST`. */
+  authDatabricksHost?: string;
+
+  /**
+   * Databricks service principal application (client) ID. Required for service
+   * principal federation policies; omit for account-wide policies.
+   * Maps to `AWF_AUTH_DATABRICKS_CLIENT_ID`.
+   */
+  authDatabricksClientId?: string;
+
+  /** OAuth scope for the Databricks token exchange (default `all-apis`). Maps to `AWF_AUTH_DATABRICKS_SCOPE`. */
+  authDatabricksScope?: string;
 }

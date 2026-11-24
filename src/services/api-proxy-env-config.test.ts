@@ -711,6 +711,39 @@ describe('buildOidcEnv', () => {
     expect(env.AWF_ANTHROPIC_AUTH_HEADER).toBe('X-Custom-Anthropic-Auth');
   });
 
+  it('forwards Databricks OIDC config-file values to the sidecar', () => {
+    const env = buildOidcEnv({
+      ...baseConfig,
+      workDir: '/tmp/awf-test',
+      authType: 'github-oidc',
+      authProvider: 'databricks',
+      authOidcAudience: 'databricks-account-id',
+      authDatabricksHost: 'https://dbc-1234.cloud.databricks.com',
+      authDatabricksClientId: 'sp-application-id',
+      authDatabricksScope: 'all-apis',
+    });
+    expect(env.AWF_AUTH_PROVIDER).toBe('databricks');
+    expect(env.AWF_AUTH_OIDC_AUDIENCE).toBe('databricks-account-id');
+    expect(env.AWF_AUTH_DATABRICKS_HOST).toBe('https://dbc-1234.cloud.databricks.com');
+    expect(env.AWF_AUTH_DATABRICKS_CLIENT_ID).toBe('sp-application-id');
+    expect(env.AWF_AUTH_DATABRICKS_SCOPE).toBe('all-apis');
+  });
+
+  it('forwards Databricks OIDC values supplied via additionalEnv to the sidecar', () => {
+    const env = buildOidcEnv({
+      ...baseConfig,
+      workDir: '/tmp/awf-test',
+      additionalEnv: {
+        AWF_AUTH_TYPE: 'github-oidc',
+        AWF_AUTH_PROVIDER: 'databricks',
+        AWF_AUTH_DATABRICKS_HOST: 'https://dbc-1234.cloud.databricks.com',
+        AWF_AUTH_DATABRICKS_CLIENT_ID: 'sp-application-id',
+      },
+    });
+    expect(env.AWF_AUTH_DATABRICKS_HOST).toBe('https://dbc-1234.cloud.databricks.com');
+    expect(env.AWF_AUTH_DATABRICKS_CLIENT_ID).toBe('sp-application-id');
+  });
+
   it('forwards GCP WIF auth values supplied via additionalEnv to the sidecar', () => {
     const env = buildOidcEnv({
       ...baseConfig,

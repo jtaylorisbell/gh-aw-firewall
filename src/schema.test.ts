@@ -609,6 +609,64 @@ describe('awf-config.schema.json', () => {
     ).toBe(true);
   });
 
+  it('accepts a valid apiProxy.auth databricks config', () => {
+    expect(
+      validate({
+        apiProxy: {
+          auth: {
+            type: 'github-oidc',
+            provider: 'databricks',
+            databricksHost: 'https://dbc-1234.cloud.databricks.com',
+            databricksClientId: 'sp-application-id',
+            oidcAudience: 'databricks-account-id',
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it('accepts apiProxy.auth databricks without a client ID (account-wide policy) and with a scope', () => {
+    expect(
+      validate({
+        apiProxy: {
+          auth: {
+            type: 'github-oidc',
+            provider: 'databricks',
+            databricksHost: 'dbc-1234.cloud.databricks.com',
+            oidcAudience: 'databricks-account-id',
+            databricksScope: 'all-apis',
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
+  it.each([
+    ['databricksHost', { oidcAudience: 'databricks-account-id' }],
+    ['oidcAudience', { databricksHost: 'https://dbc-1234.cloud.databricks.com' }],
+  ])('rejects apiProxy.auth databricks without %s', (_missing, fields) => {
+    expect(
+      validate({
+        apiProxy: { auth: { type: 'github-oidc', provider: 'databricks', ...fields } },
+      })
+    ).toBe(false);
+  });
+
+  it('does not require Azure fields for databricks', () => {
+    expect(
+      validate({
+        apiProxy: {
+          auth: {
+            type: 'github-oidc',
+            provider: 'databricks',
+            databricksHost: 'https://dbc-1234.cloud.databricks.com',
+            oidcAudience: 'databricks-account-id',
+          },
+        },
+      })
+    ).toBe(true);
+  });
+
   it('rejects apiProxy.auth with unknown type', () => {
     expect(
       validate({

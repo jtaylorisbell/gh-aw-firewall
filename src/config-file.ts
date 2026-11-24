@@ -145,6 +145,9 @@ export interface AwfFileConfig {
       anthropicServiceAccountId?: string;
       anthropicWorkspaceId?: string;
       anthropicTokenUrl?: string;
+      databricksHost?: string;
+      databricksClientId?: string;
+      databricksScope?: string;
     };
   };
   security?: {

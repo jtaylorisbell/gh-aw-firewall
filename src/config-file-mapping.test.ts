@@ -634,6 +634,26 @@ describe('mapAwfFileConfigToCliOptions', () => {
     expect(result.authAnthropicWorkspaceId).toBe('ws-uuid');
   });
 
+  it('maps apiProxy.auth Databricks OIDC fields', () => {
+    const result = mapAwfFileConfigToCliOptions({
+      apiProxy: {
+        auth: {
+          provider: 'databricks',
+          oidcAudience: 'databricks-account-id',
+          databricksHost: 'https://dbc-1234.cloud.databricks.com',
+          databricksClientId: 'sp-application-id',
+          databricksScope: 'all-apis',
+        },
+      },
+    });
+
+    expect(result.authProvider).toBe('databricks');
+    expect(result.authOidcAudience).toBe('databricks-account-id');
+    expect(result.authDatabricksHost).toBe('https://dbc-1234.cloud.databricks.com');
+    expect(result.authDatabricksClientId).toBe('sp-application-id');
+    expect(result.authDatabricksScope).toBe('all-apis');
+  });
+
   it('maps rateLimiting fields including GitHub API point budgets', () => {
     const result = mapAwfFileConfigToCliOptions({
       rateLimiting: {

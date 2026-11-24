@@ -1941,7 +1941,7 @@ AWF supports OIDC-based credential exchange with multiple cloud providers via Gi
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `AWF_AUTH_TYPE` | ✅ | Set to `github-oidc` to enable OIDC authentication |
-| `AWF_AUTH_PROVIDER` | No | Cloud provider: `azure` (default), `aws`, `gcp`, `anthropic`, or `openai` |
+| `AWF_AUTH_PROVIDER` | No | Cloud provider: `azure` (default), `aws`, `gcp`, `anthropic`, `openai`, or `databricks` |
 | `AWF_AUTH_OIDC_AUDIENCE` | No | Override the OIDC audience (provider-specific defaults apply) |
 | `ACTIONS_ID_TOKEN_REQUEST_URL` | ✅ | Provided automatically by the GitHub Actions runtime |
 | `ACTIONS_ID_TOKEN_REQUEST_TOKEN` | ✅ | Provided automatically by the GitHub Actions runtime |
@@ -1956,7 +1956,7 @@ GitHub Agentic Workflows handles HTTP MCP `auth.type: github-oidc` separately: t
 
 ### Cloud OIDC target binding
 
-Azure, AWS and GCP credentials (`AWF_AUTH_PROVIDER=azure|aws|gcp`) are bound to the origin (scheme, host and port) of `COPILOT_PROVIDER_BASE_URL` when present. Otherwise, explicitly configured adapter targets must all have the same origin; conflicting or invalid targets disable cloud OIDC binding. Eligible adapters are `COPILOT_API_TARGET` (set by the CLI from the BYOK URL), `OPENAI_API_TARGET` or the Azure BYOK provider URL (`COPILOT_PROVIDER_TYPE=azure`), `ANTHROPIC_API_TARGET`, and Gemini/Vertex when `AWF_AUTH_PROVIDER=gcp`. With no explicit target, GCP OIDC remains available to the default Gemini and Vertex endpoints. Other adapters left at their default upstream do not initialize a cloud OIDC provider. The sidecar also refuses to bind these credentials to `api.openai.com`, `api.anthropic.com`, `*.githubcopilot.com` and `copilot-api.*.ghe.com`, logging `cloud_oidc_target_refused`. Native OpenAI (`openai`) and Anthropic (`anthropic`) workload identity are unaffected. The OpenAI adapter inherits an Azure BYOK API key only when its effective target has the same origin as the BYOK URL.
+Azure, AWS, GCP and Databricks credentials (`AWF_AUTH_PROVIDER=azure|aws|gcp|databricks`) are bound to the origin (scheme, host and port) of `COPILOT_PROVIDER_BASE_URL` when present. Otherwise, explicitly configured adapter targets must all have the same origin; conflicting or invalid targets disable cloud OIDC binding. Eligible adapters are `COPILOT_API_TARGET` (set by the CLI from the BYOK URL), `OPENAI_API_TARGET` or the Azure BYOK provider URL (`COPILOT_PROVIDER_TYPE=azure`), `ANTHROPIC_API_TARGET`, and Gemini/Vertex when `AWF_AUTH_PROVIDER=gcp`. With no explicit target, GCP OIDC remains available to the default Gemini and Vertex endpoints. Other adapters left at their default upstream do not initialize a cloud OIDC provider. The sidecar also refuses to bind these credentials to `api.openai.com`, `api.anthropic.com`, `*.githubcopilot.com` and `copilot-api.*.ghe.com`, logging `cloud_oidc_target_refused`. Native OpenAI (`openai`) and Anthropic (`anthropic`) workload identity are unaffected. The OpenAI adapter inherits an Azure BYOK API key only when its effective target has the same origin as the BYOK URL.
 
 When `AWF_AUTH_TYPE=github-oidc` is set but `ACTIONS_ID_TOKEN_REQUEST_URL`/`ACTIONS_ID_TOKEN_REQUEST_TOKEN` are not available in the sidecar, Anthropic OIDC requests fail closed with:
 
@@ -2091,6 +2091,61 @@ jobs:
                 --allow-domains api.anthropic.com \
                 -- your-agent-command
 ```
+
+### Databricks
+
+Exchanges the GitHub OIDC JWT at the workspace OAuth token endpoint (`https://<workspace>/oidc/v1/token`) for a Databricks OAuth access token, then injects it as `Authorization: Bearer` on upstream requests. Select it with `AWF_AUTH_PROVIDER=databricks`. The exchange uses the same parameters as the Databricks SDKs' `github-oidc` auth type: an RFC 8693 token exchange with `scope=all-apis` and the service principal's `client_id`.
+
+The result is a workspace OAuth token that works for [Unity Gateway](https://docs.databricks.com/aws/en/unity-gateway/concepts) and other Databricks APIs, so `provider: databricks` names the credential issuer, and the adapter targets choose the API (Unity Gateway paths are shown below).
+
+The token binds to the OpenAI, Anthropic, and Copilot adapters whose upstream is explicitly the workspace (see [Cloud OIDC target binding](#cloud-oidc-target-binding)). For the OpenAI and Anthropic adapters, AWF also routes the agent to the sidecar (`OPENAI_BASE_URL` / `ANTHROPIC_BASE_URL` plus placeholders) from this configuration alone, so no static key is needed. Copilot BYOK is routed by `COPILOT_PROVIDER_BASE_URL` as usual.
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `AWF_AUTH_DATABRICKS_HOST` | ✅ | — | Workspace URL or hostname (`https` only; path and query are ignored) |
+| `AWF_AUTH_OIDC_AUDIENCE` | ✅ | — | Audience allowed by the federation policy. Databricks recommends the account ID. There is no default. |
+| `AWF_AUTH_DATABRICKS_CLIENT_ID` | Conditional | — | Service principal application ID. Required for service principal federation policies; omit for account-wide policies. |
+| `AWF_AUTH_DATABRICKS_SCOPE` | No | `all-apis` | OAuth scope requested in the exchange. Unity Gateway also defines a narrower `ai-gateway` scope; confirm your federation policy issues it before narrowing. |
+
+Databricks access tokens expire together with the GitHub JWT they were exchanged from and come without a refresh token, so the sidecar refreshes at 75% of the reported lifetime by minting a fresh GitHub JWT. Exchange failures are logged as `databricks_oidc_init_retry` / `databricks_oidc_refresh_failed` with the OAuth `error` and `error_description`. Raw response bodies are not logged.
+
+**Official references:** [Authenticate with an identity provider token](https://docs.databricks.com/aws/en/dev-tools/auth/oauth-federation-exchange) · [Enable workload identity federation for GitHub Actions](https://docs.databricks.com/aws/en/dev-tools/auth/provider-github)
+
+#### Example: Claude Code through Unity Gateway
+
+```yaml
+# awf.yaml
+apiProxy:
+  targets:
+    anthropic:
+      host: dbc-1234.cloud.databricks.com
+      basePath: /ai-gateway/anthropic
+  auth:
+    type: github-oidc
+    provider: databricks
+    databricksHost: https://dbc-1234.cloud.databricks.com
+    databricksClientId: <service-principal-application-id>
+    oidcAudience: <databricks-account-id>
+```
+
+```yaml
+jobs:
+  agent:
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Run Claude Code through Unity Gateway
+        run: |
+          sudo --preserve-env=ACTIONS_ID_TOKEN_REQUEST_URL,ACTIONS_ID_TOKEN_REQUEST_TOKEN \
+            awf --config awf.yaml \
+                --allow-domains dbc-1234.cloud.databricks.com \
+                -- claude -p "..."
+```
+
+For OpenAI-compatible clients, set `apiProxy.targets.openai` to the same host with `basePath: /ai-gateway/mlflow/v1`, in place of or alongside the Anthropic target.
+
+Databricks' Claude Code guide also sets `ANTHROPIC_CUSTOM_HEADERS=x-databricks-use-coding-agent-mode: true`. AWF forwards non-credential client headers, so pass that variable to the agent with `--env` if you want the same behavior.
 
 ## AI-credit hard cap
 

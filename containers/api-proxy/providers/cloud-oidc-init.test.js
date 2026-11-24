@@ -166,6 +166,87 @@ describe('resolveCloudOidcProviders', () => {
     expect(result.oidcProvider).toBeNull();
     expect(result.oidcConfigured).toBe(false);
   });
+
+  describe('Databricks', () => {
+    const DATABRICKS_ENV = {
+      AWF_AUTH_TYPE: 'github-oidc',
+      AWF_AUTH_PROVIDER: 'databricks',
+      ACTIONS_ID_TOKEN_REQUEST_URL: 'http://localhost/token',
+      ACTIONS_ID_TOKEN_REQUEST_TOKEN: 'test-token',
+      AWF_AUTH_DATABRICKS_HOST: 'https://dbc-1234.cloud.databricks.com',
+      AWF_AUTH_DATABRICKS_CLIENT_ID: 'sp-application-id',
+      AWF_AUTH_OIDC_AUDIENCE: 'databricks-account-id',
+    };
+    const DATABRICKS_TARGET = {
+      allowCloudOidc: true,
+      targetHost: 'dbc-1234.cloud.databricks.com',
+      adapterName: 'anthropic',
+    };
+
+    it('creates a Databricks provider bound to an explicit workspace target', () => {
+      const result = resolveCloudOidcProviders(
+        { ...DATABRICKS_ENV, ANTHROPIC_API_TARGET: 'dbc-1234.cloud.databricks.com' },
+        DATABRICKS_TARGET,
+      );
+
+      expect(result.authProvider).toBe('databricks');
+      expect(result.oidcConfigured).toBe(true);
+      expect(result.awsOidcProvider).toBeNull();
+      expect(result.oidcProvider._tokenEndpoint).toBe('https://dbc-1234.cloud.databricks.com/oidc/v1/token');
+      expect(result.oidcProvider._clientId).toBe('sp-application-id');
+      expect(result.oidcProvider._scope).toBe('all-apis');
+      expect(result.oidcProvider._oidcAudience).toBe('databricks-account-id');
+
+      result.oidcProvider.shutdown();
+    });
+
+    it('passes a configured scope through', () => {
+      const result = resolveCloudOidcProviders(
+        { ...DATABRICKS_ENV, AWF_AUTH_DATABRICKS_SCOPE: 'serving-endpoints' },
+        DATABRICKS_TARGET,
+      );
+
+      expect(result.oidcProvider._scope).toBe('serving-endpoints');
+      result.oidcProvider.shutdown();
+    });
+
+    it.each(['AWF_AUTH_DATABRICKS_HOST', 'AWF_AUTH_OIDC_AUDIENCE', 'ACTIONS_ID_TOKEN_REQUEST_TOKEN'])(
+      'is not configured without %s',
+      (name) => {
+        const result = resolveCloudOidcProviders({ ...DATABRICKS_ENV, [name]: '' }, DATABRICKS_TARGET);
+        expect(result.oidcProvider).toBeNull();
+        expect(result.oidcConfigured).toBe(false);
+      },
+    );
+
+    it('is not bound to adapters left at their default upstream', () => {
+      const result = resolveCloudOidcProviders(DATABRICKS_ENV, {
+        targetHost: 'api.anthropic.com',
+        adapterName: 'anthropic',
+      });
+      expect(result.oidcProvider).toBeNull();
+      expect(result.oidcConfigured).toBe(false);
+    });
+
+    it.each(['api.openai.com', 'api.anthropic.com', 'api.githubcopilot.com'])(
+      'refuses to attach a Databricks token to first-party host %p',
+      (targetHost) => {
+        const result = resolveCloudOidcProviders(DATABRICKS_ENV, { allowCloudOidc: true, targetHost });
+        expect(result.oidcProvider).toBeNull();
+        expect(result.oidcConfigured).toBe(false);
+      },
+    );
+
+    it('refuses to bind when explicit targets point at different origins', () => {
+      const result = resolveCloudOidcProviders({
+        ...DATABRICKS_ENV,
+        OPENAI_API_TARGET: 'dbc-1234.cloud.databricks.com',
+        ANTHROPIC_API_TARGET: 'other-gateway.example.com',
+      }, DATABRICKS_TARGET);
+      expect(result.oidcProvider).toBeNull();
+      expect(result.oidcConfigured).toBe(false);
+    });
+  });
 });
 
 describe('createProviderOidcAuth', () => {

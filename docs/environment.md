@@ -347,6 +347,17 @@ In AWF API-proxy mode this is mitigated by placeholder values (`sk-ant-placehold
 agent container, but avoid setting a real `ANTHROPIC_API_KEY` alongside WIF variables in the
 same process.
 
+## Databricks OIDC environment notes
+
+When using Databricks OAuth token federation (`AWF_AUTH_TYPE=github-oidc`, `AWF_AUTH_PROVIDER=databricks`), the API proxy exchanges the GitHub OIDC token at `https://<workspace>/oidc/v1/token`. AWF supports:
+
+- `AWF_AUTH_DATABRICKS_HOST` (required; workspace URL or hostname)
+- `AWF_AUTH_OIDC_AUDIENCE` (required; no default, must match the federation policy)
+- `AWF_AUTH_DATABRICKS_CLIENT_ID` (required for service principal federation policies; omit for account-wide policies)
+- `AWF_AUTH_DATABRICKS_SCOPE` (optional; defaults to `all-apis`)
+
+These are forwarded to the sidecar only. Set `OPENAI_API_TARGET` and/or `ANTHROPIC_API_TARGET` to the workspace so the token is bound to those adapters. See [auth-matrix.md](auth-matrix.md#databricks-oauth-token-federation).
+
 ## Gemini CLI compatibility (API proxy)
 
 | Gemini CLI version | Status with `--enable-api-proxy` | Notes |

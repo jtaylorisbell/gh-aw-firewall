@@ -8,7 +8,7 @@ const {
 const { getTargetHostname } = require('../proxy-utils');
 const { logRequest } = require('../logging');
 
-const CLOUD_OIDC_PROVIDERS = new Set(['azure', 'aws', 'gcp']);
+const CLOUD_OIDC_PROVIDERS = new Set(['azure', 'aws', 'gcp', 'databricks']);
 
 function targetOrigin(target) {
   if (typeof target !== 'string' || !target.trim()) return null;
@@ -166,6 +166,20 @@ function resolveCloudOidcProviders(env, options = {}) {
             serviceAccount: env.AWF_AUTH_GCP_SERVICE_ACCOUNT,
             oidcAudience: env.AWF_AUTH_OIDC_AUDIENCE,
             scope: env.AWF_AUTH_GCP_SCOPE,
+          });
+        }
+      } else if (authProvider === 'databricks') {
+        const host = (env.AWF_AUTH_DATABRICKS_HOST || '').trim();
+        const oidcAudience = (env.AWF_AUTH_OIDC_AUDIENCE || '').trim();
+        if (host && oidcAudience) {
+          const { DatabricksOidcTokenProvider } = require('../databricks-oidc-token-provider');
+          oidcProvider = new DatabricksOidcTokenProvider({
+            requestUrl,
+            requestToken,
+            host,
+            oidcAudience,
+            clientId: env.AWF_AUTH_DATABRICKS_CLIENT_ID,
+            scope: env.AWF_AUTH_DATABRICKS_SCOPE,
           });
         }
       } else if (authProvider === 'openai' && allowOpenAiWif) {

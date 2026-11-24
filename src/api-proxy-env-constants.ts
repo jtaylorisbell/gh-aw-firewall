@@ -46,6 +46,10 @@ const OIDC_AUTH_ENV_MAPPING = [
   { configKey: 'authAnthropicOrganizationId', envVar: 'AWF_AUTH_ANTHROPIC_ORGANIZATION_ID' },
   { configKey: 'authAnthropicServiceAccountId', envVar: 'AWF_AUTH_ANTHROPIC_SERVICE_ACCOUNT_ID' },
   { configKey: 'authAnthropicWorkspaceId', envVar: 'AWF_AUTH_ANTHROPIC_WORKSPACE_ID' },
+  // Databricks
+  { configKey: 'authDatabricksHost', envVar: 'AWF_AUTH_DATABRICKS_HOST' },
+  { configKey: 'authDatabricksClientId', envVar: 'AWF_AUTH_DATABRICKS_CLIENT_ID' },
+  { configKey: 'authDatabricksScope', envVar: 'AWF_AUTH_DATABRICKS_SCOPE' },
 ] as const satisfies ReadonlyArray<{
   configKey: Extract<keyof import('./types').WrapperConfig, string>;
   envVar: `AWF_AUTH_${string}`;

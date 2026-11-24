@@ -52,6 +52,11 @@ export function buildExclusionSet(config: WrapperConfig): Set<string> {
     excludedEnvVars.add('CODEX_API_KEY');
     excludedEnvVars.add('AWF_AUTH_OPENAI_IDENTITY_PROVIDER_ID');
     excludedEnvVars.add('AWF_AUTH_OPENAI_SERVICE_ACCOUNT_ID');
+    // Databricks OIDC settings are consumed by the sidecar only; the workspace
+    // host and service principal ID have no use in the agent.
+    excludedEnvVars.add('AWF_AUTH_DATABRICKS_HOST');
+    excludedEnvVars.add('AWF_AUTH_DATABRICKS_CLIENT_ID');
+    excludedEnvVars.add('AWF_AUTH_DATABRICKS_SCOPE');
     excludedEnvVars.add('ANTHROPIC_API_KEY');
     excludedEnvVars.add('ANTHROPIC_AUTH_TOKEN');
     excludedEnvVars.add('CLAUDE_API_KEY');
